@@ -2,6 +2,7 @@
 #define THERMAL_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #define MAX_THERMAL_ZONES 32
 
@@ -13,6 +14,7 @@ typedef struct {
 } thermal_data_t;
 
 void thermal_collect(thermal_data_t *data);
-void thermal_log(const thermal_data_t *data);
+void thermal_log(FILE *out, const thermal_data_t *data);
+void thermal_json(FILE *out, const thermal_data_t *data);
 
 #endif /* THERMAL_H */

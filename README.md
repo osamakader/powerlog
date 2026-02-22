@@ -35,6 +35,7 @@ make
 |--------|-------------|
 | `-i, --interval SEC` | Polling interval in seconds (default: 5) |
 | `-o, --output FILE` | Write log to file instead of stdout |
+| `-j, --json` | Output in JSON format (pretty-printed) |
 | `-h, --help` | Show help |
 
 ## Logged Data

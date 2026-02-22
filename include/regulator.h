@@ -2,6 +2,7 @@
 #define REGULATOR_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #define MAX_REGULATORS 64
 
@@ -15,6 +16,7 @@ typedef struct {
 } regulator_data_t;
 
 void regulator_collect(regulator_data_t *data);
-void regulator_log(const regulator_data_t *data);
+void regulator_log(FILE *out, const regulator_data_t *data);
+void regulator_json(FILE *out, const regulator_data_t *data);
 
 #endif /* REGULATOR_H */

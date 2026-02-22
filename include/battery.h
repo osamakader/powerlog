@@ -2,6 +2,7 @@
 #define BATTERY_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #define MAX_BATTERIES 8
 
@@ -14,6 +15,7 @@ typedef struct {
 } battery_data_t;
 
 void battery_collect(battery_data_t *data);
-void battery_log(const battery_data_t *data);
+void battery_log(FILE *out, const battery_data_t *data);
+void battery_json(FILE *out, const battery_data_t *data);
 
 #endif /* BATTERY_H */

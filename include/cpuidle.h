@@ -2,6 +2,7 @@
 #define CPUIDLE_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #define MAX_CPUS     256
 #define MAX_CSTATES  16
@@ -16,6 +17,7 @@ typedef struct {
 } cpuidle_data_t;
 
 void cpuidle_collect(cpuidle_data_t *data);
-void cpuidle_log(const cpuidle_data_t *data);
+void cpuidle_log(FILE *out, const cpuidle_data_t *data);
+void cpuidle_json(FILE *out, const cpuidle_data_t *data);
 
 #endif /* CPUIDLE_H */

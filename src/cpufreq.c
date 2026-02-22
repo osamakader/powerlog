@@ -46,22 +46,42 @@ void cpufreq_collect(cpufreq_data_t *data)
 	data->available = (data->num_cpus > 0);
 }
 
-void cpufreq_log(const cpufreq_data_t *data)
+void cpufreq_log(FILE *out, const cpufreq_data_t *data)
 {
 	int i;
 
 	if (!data->available)
 		return;
 
-	printf("[CPU Frequency]\n");
+	fprintf(out, "[CPU Frequency]\n");
 	for (i = 0; i < data->num_cpus; i++) {
 		if (data->freq_khz[i] >= 0) {
-			printf("  cpu%d: %d MHz", i, data->freq_khz[i] / 1000);
+			fprintf(out, "  cpu%d: %d MHz", i, data->freq_khz[i] / 1000);
 			if (data->energy_pref[i][0])
-				printf(" [%s]", data->energy_pref[i]);
-			printf("\n");
+				fprintf(out, " [%s]", data->energy_pref[i]);
+			fprintf(out, "\n");
 		} else {
-			printf("  cpu%d: N/A\n", i);
+			fprintf(out, "  cpu%d: N/A\n", i);
 		}
 	}
+}
+
+void cpufreq_json(FILE *out, const cpufreq_data_t *data)
+{
+	int i;
+
+	fprintf(out, "\"cpufreq\": [\n    ");
+	for (i = 0; i < data->num_cpus; i++) {
+		if (i > 0)
+			fprintf(out, ",\n    ");
+		fprintf(out, "{\"cpu\": %d, \"freq_mhz\": %d", i,
+			data->freq_khz[i] >= 0 ? data->freq_khz[i] / 1000 : -1);
+		if (data->energy_pref[i][0]) {
+			fprintf(out, ", \"energy_pref\": \"");
+			json_escape_fprintf(out, data->energy_pref[i]);
+			fprintf(out, "\"");
+		}
+		fprintf(out, "}");
+	}
+	fprintf(out, "\n  ]");
 }

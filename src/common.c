@@ -31,3 +31,26 @@ bool path_exists(const char *path)
 {
 	return access(path, F_OK) == 0;
 }
+
+void json_escape_fprintf(FILE *out, const char *s)
+{
+	if (!s)
+		return;
+	for (; *s; s++) {
+		switch (*s) {
+		case '"':  fputs("\\\"", out); break;
+		case '\\': fputs("\\\\", out); break;
+		case '\b': fputs("\\b", out); break;
+		case '\f': fputs("\\f", out); break;
+		case '\n': fputs("\\n", out); break;
+		case '\r': fputs("\\r", out); break;
+		case '\t': fputs("\\t", out); break;
+		default:
+			if ((unsigned char)*s < 0x20)
+				fprintf(out, "\\u%04x", (unsigned char)*s);
+			else
+				fputc(*s, out);
+			break;
+		}
+	}
+}

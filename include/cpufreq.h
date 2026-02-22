@@ -2,6 +2,7 @@
 #define CPUFREQ_H
 
 #include <stdbool.h>
+#include <stdio.h>
 
 #define MAX_CPUS 256
 
@@ -14,6 +15,7 @@ typedef struct {
 } cpufreq_data_t;
 
 void cpufreq_collect(cpufreq_data_t *data);
-void cpufreq_log(const cpufreq_data_t *data);
+void cpufreq_log(FILE *out, const cpufreq_data_t *data);
+void cpufreq_json(FILE *out, const cpufreq_data_t *data);
 
 #endif /* CPUFREQ_H */

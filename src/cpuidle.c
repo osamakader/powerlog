@@ -48,20 +48,43 @@ void cpuidle_collect(cpuidle_data_t *data)
 	data->available = (data->num_cpus > 0);
 }
 
-void cpuidle_log(const cpuidle_data_t *data)
+void cpuidle_log(FILE *out, const cpuidle_data_t *data)
 {
 	int cpu, state;
 
 	if (!data->available)
 		return;
 
-	printf("[C-States]\n");
+	fprintf(out, "[C-States]\n");
 	for (cpu = 0; cpu < data->num_cpus; cpu++) {
-		printf("  cpu%d:\n", cpu);
+		fprintf(out, "  cpu%d:\n", cpu);
 		for (state = 0; state < data->num_states[cpu]; state++) {
-			printf("    %s: time=%lu us, usage=%lu\n",
-			       data->name[cpu][state][0] ? data->name[cpu][state] : "?",
-			       data->time[cpu][state], data->usage[cpu][state]);
+			fprintf(out, "    %s: time=%lu us, usage=%lu\n",
+				data->name[cpu][state][0] ? data->name[cpu][state] : "?",
+				data->time[cpu][state], data->usage[cpu][state]);
 		}
 	}
+}
+
+void cpuidle_json(FILE *out, const cpuidle_data_t *data)
+{
+	int cpu, state;
+
+	fprintf(out, "\"cpuidle\": [\n    ");
+	for (cpu = 0; cpu < data->num_cpus; cpu++) {
+		if (cpu > 0)
+			fprintf(out, ",\n    ");
+		fprintf(out, "{\"cpu\": %d, \"states\": [\n      ", cpu);
+		for (state = 0; state < data->num_states[cpu]; state++) {
+			if (state > 0)
+				fprintf(out, ",\n      ");
+			fprintf(out, "{\"name\": \"");
+			json_escape_fprintf(out, data->name[cpu][state][0] ?
+					   data->name[cpu][state] : "?");
+			fprintf(out, "\", \"time_us\": %lu, \"usage\": %lu}",
+				data->time[cpu][state], data->usage[cpu][state]);
+		}
+		fprintf(out, "\n    ]}");
+	}
+	fprintf(out, "\n  ]");
 }

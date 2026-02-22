@@ -61,19 +61,39 @@ void regulator_collect(regulator_data_t *data)
 	data->available = (data->num_regulators > 0);
 }
 
-void regulator_log(const regulator_data_t *data)
+void regulator_log(FILE *out, const regulator_data_t *data)
 {
 	int i;
 
 	if (!data->available)
 		return;
 
-	printf("[Regulators]\n");
+	fprintf(out, "[Regulators]\n");
 	for (i = 0; i < data->num_regulators; i++) {
-		printf("  %s: %s", data->name[i],
-		       data->state[i][0] ? data->state[i] : "?");
+		fprintf(out, "  %s: %s", data->name[i],
+			data->state[i][0] ? data->state[i] : "?");
 		if (data->microvolts[i] >= 0)
-			printf(" (%d µV)", data->microvolts[i]);
-		printf("\n");
+			fprintf(out, " (%d µV)", data->microvolts[i]);
+		fprintf(out, "\n");
 	}
+}
+
+void regulator_json(FILE *out, const regulator_data_t *data)
+{
+	int i;
+
+	fprintf(out, "\"regulators\": [\n    ");
+	for (i = 0; i < data->num_regulators; i++) {
+		if (i > 0)
+			fprintf(out, ",\n    ");
+		fprintf(out, "{\"name\": \"");
+		json_escape_fprintf(out, data->name[i]);
+		fprintf(out, "\", \"state\": \"");
+		json_escape_fprintf(out, data->state[i][0] ? data->state[i] : "?");
+		fprintf(out, "\"");
+		if (data->microvolts[i] >= 0)
+			fprintf(out, ", \"microvolts\": %d", data->microvolts[i]);
+		fprintf(out, "}");
+	}
+	fprintf(out, "\n  ]");
 }

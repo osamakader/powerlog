@@ -54,20 +54,38 @@ void battery_collect(battery_data_t *data)
 	data->available = (data->num_batteries > 0);
 }
 
-void battery_log(const battery_data_t *data)
+void battery_log(FILE *out, const battery_data_t *data)
 {
 	int i;
 
 	if (!data->available)
 		return;
 
-	printf("[Battery]\n");
+	fprintf(out, "[Battery]\n");
 	for (i = 0; i < data->num_batteries; i++) {
 		if (data->capacity[i] >= 0)
-			printf("  %s: %d%% (%s)\n", data->name[i], data->capacity[i],
-			       data->status[i][0] ? data->status[i] : "?");
+			fprintf(out, "  %s: %d%% (%s)\n", data->name[i], data->capacity[i],
+				data->status[i][0] ? data->status[i] : "?");
 		else
-			printf("  %s: N/A (%s)\n", data->name[i],
-			       data->status[i][0] ? data->status[i] : "?");
+			fprintf(out, "  %s: N/A (%s)\n", data->name[i],
+				data->status[i][0] ? data->status[i] : "?");
 	}
+}
+
+void battery_json(FILE *out, const battery_data_t *data)
+{
+	int i;
+
+	fprintf(out, "\"battery\": [\n    ");
+	for (i = 0; i < data->num_batteries; i++) {
+		if (i > 0)
+			fprintf(out, ",\n    ");
+		fprintf(out, "{\"name\": \"");
+		json_escape_fprintf(out, data->name[i]);
+		fprintf(out, "\", \"capacity\": %d, \"status\": \"",
+			data->capacity[i] >= 0 ? data->capacity[i] : -1);
+		json_escape_fprintf(out, data->status[i][0] ? data->status[i] : "?");
+		fprintf(out, "\"}");
+	}
+	fprintf(out, "\n  ]");
 }

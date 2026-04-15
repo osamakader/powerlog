@@ -42,7 +42,8 @@ static void print_timestamp(FILE *out)
 
 static void log_all(FILE *out, bool json,
 		    cpufreq_data_t *cf, cpuidle_data_t *ci,
-		    thermal_data_t *th, battery_data_t *bat, regulator_data_t *reg)
+		    thermal_data_t *th, battery_data_t *bat, regulator_data_t *reg,
+		    bool with_cpuidle)
 {
 	time_t now = time(NULL);
 	struct tm *tm = localtime(&now);
@@ -59,7 +60,8 @@ static void log_all(FILE *out, bool json,
 		fprintf(out, "{\n  \"timestamp\": \"%s\",\n  ", ts);
 		cpufreq_json(out, cf);
 		fprintf(out, ",\n  ");
-		cpuidle_json(out, ci);
+		if (with_cpuidle)
+			cpuidle_json(out, ci);
 		fprintf(out, ",\n  ");
 		thermal_json(out, th);
 		fprintf(out, ",\n  ");
@@ -70,7 +72,8 @@ static void log_all(FILE *out, bool json,
 	} else {
 		print_timestamp(out);
 		cpufreq_log(out, cf);
-		cpuidle_log(out, ci);
+		if (with_cpuidle)
+			cpuidle_log(out, ci);
 		thermal_log(out, th);
 		battery_log(out, bat);
 		regulator_log(out, reg);
@@ -95,16 +98,18 @@ int main(int argc, char *argv[])
 	FILE *out = stdout;
 	char *out_path = NULL;
 	bool json_mode = false;
+	bool with_cpuidle = false;
 	int opt;
 	static struct option long_opts[] = {
 		{ "interval", required_argument, 0, 'i' },
 		{ "output",   required_argument, 0, 'o' },
 		{ "json",     no_argument,       0, 'j' },
 		{ "help",     no_argument,       0, 'h' },
+		{ "with-cpuidle", no_argument,       0, 'w' },
 		{ 0, 0, 0, 0 }
 	};
 
-	while ((opt = getopt_long(argc, argv, "i:o:jh", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:o:jhw", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			interval = atoi(optarg);
@@ -120,6 +125,9 @@ int main(int argc, char *argv[])
 		case 'h':
 			usage(argv[0]);
 			return 0;
+		case 'w':
+			with_cpuidle = true;
+			break;
 		default:
 			usage(argv[0]);
 			return 1;
@@ -144,7 +152,7 @@ int main(int argc, char *argv[])
 	regulator_data_t reg = {0};
 
 	while (running) {
-		log_all(out, json_mode, &cf, &ci, &th, &bat, &reg);
+		log_all(out, json_mode, &cf, &ci, &th, &bat, &reg, with_cpuidle);
 		if (running)
 			sleep(interval);
 	}

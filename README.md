@@ -55,8 +55,8 @@ make
 - **CPU Frequency**: Current frequency (MHz) and energy performance preference per CPU
 - **C-States** (with `-w`): Idle state names, residency time (µs), and usage counts
 - **Thermal**: Temperature per thermal zone (°C)
-- **Battery**: Capacity (%) and status (Charging/Discharging/Full)
-- **Regulators**: State (enabled/disabled) and voltage (µV) when available
+- **Battery**: `BAT*` power supplies only (e.g. `BAT0`); HID accessories without capacity are omitted. Text/JSON only list entries with a readable capacity.
+- **Regulators**: State (enabled/disabled) and voltage (µV) when available. The kernel `regulator-dummy` placeholder is omitted.
 
 ## Install
 

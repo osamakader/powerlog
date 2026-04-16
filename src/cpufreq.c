@@ -2,7 +2,6 @@
 #include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 void cpufreq_collect(cpufreq_data_t *data)
 {

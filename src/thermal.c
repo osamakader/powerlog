@@ -2,7 +2,6 @@
 #include "common.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 void thermal_collect(thermal_data_t *data)
 {

@@ -3,13 +3,20 @@
  * Logs CPU frequency, C-states, thermal state, battery level, and regulator status.
  */
 
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <time.h>
 #include <unistd.h>
 #include <signal.h>
 #include <getopt.h>
+#include <strings.h>
 
 #include <stdbool.h>
 #include "common.h"
@@ -20,10 +27,61 @@
 #include "battery.h"
 #include "regulator.h"
 
-#define DEFAULT_INTERVAL_SEC 5
-#define TIMESTAMP_BUF_SIZE 64
+#define DEFAULT_INTERVAL_MS 5000u
+#define TIMESTAMP_BUF_SIZE 48 /* YYYY-mm-dd HH:MM:SS.mmm + NUL */
 
 static volatile sig_atomic_t running = 1;
+
+/* Bare number = seconds; suffix `s` = seconds, `ms` = milliseconds */
+static int parse_time_ms(const char *arg, unsigned *out_ms)
+{
+	char *end;
+	double v = strtod(arg, &end);
+
+	if (end == arg)
+		return -1;
+	if (*end == '\0') {
+		if (v < 0)
+			return -1;
+		*out_ms = (unsigned)(v * 1000.0 + 0.5);
+		return 0;
+	}
+	if (strcasecmp(end, "ms") == 0) {
+		if (v < 0)
+			return -1;
+		*out_ms = (unsigned)(v + 0.5);
+		return 0;
+	}
+	if (strcasecmp(end, "s") == 0) {
+		if (v < 0)
+			return -1;
+		*out_ms = (unsigned)(v * 1000.0 + 0.5);
+		return 0;
+	}
+	return -1;
+}
+
+static void sleep_ms(unsigned ms)
+{
+	struct timespec req, rem;
+
+	req.tv_sec = ms / 1000u;
+	req.tv_nsec = (long)(ms % 1000u) * 1000000L;
+	while (nanosleep(&req, &rem) == -1) {
+		if (errno != EINTR)
+			break;
+		req = rem;
+	}
+}
+
+static uint64_t monotonic_ms_since(const struct timespec *t0)
+{
+	struct timespec now;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (uint64_t)(now.tv_sec - t0->tv_sec) * 1000ULL
+		+ (uint64_t)(now.tv_nsec - t0->tv_nsec) / 1000000ULL;
+}
 
 static void sig_handler(int sig)
 {
@@ -31,13 +89,28 @@ static void sig_handler(int sig)
 	running = 0;
 }
 
+/* Wall clock with millisecond suffix (for time-series alignment) */
+static void format_ts_wall(char *buf, size_t len, bool json_fmt)
+{
+	struct timespec rtc;
+	struct tm *tm;
+
+	clock_gettime(CLOCK_REALTIME, &rtc);
+	tm = localtime(&rtc.tv_sec);
+	if (json_fmt)
+		strftime(buf, len, "%Y-%m-%dT%H:%M:%S", tm);
+	else
+		strftime(buf, len, "%Y-%m-%d %H:%M:%S", tm);
+	if (strlen(buf) + 5 < len)
+		snprintf(buf + strlen(buf), len - strlen(buf), ".%03ld",
+			 (long)(rtc.tv_nsec / 1000000L));
+}
+
 static void print_timestamp(FILE *out)
 {
-	time_t now = time(NULL);
-	struct tm *tm = localtime(&now);
 	char buf[TIMESTAMP_BUF_SIZE];
 
-	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm);
+	format_ts_wall(buf, sizeof(buf), false);
 	log_text_timestamp(out, buf);
 }
 
@@ -48,8 +121,6 @@ static void log_all(FILE *out, bool json,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge)
 {
-	time_t now = time(NULL);
-	struct tm *tm = localtime(&now);
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
 
@@ -59,12 +130,12 @@ static void log_all(FILE *out, bool json,
 	battery_collect(bat);
 	regulator_collect(reg);
 
-	strftime(ts_human, sizeof(ts_human), "%Y-%m-%d %H:%M:%S", tm);
+	format_ts_wall(ts_human, sizeof(ts_human), false);
+	format_ts_wall(ts, sizeof(ts), true);
 	if (alerts->thermal_max_c >= 0 || alerts->battery_low_pct >= 0)
 		alerts_notify_edges(stderr, alerts, edge, th, bat, ts_human);
 
 	if (json) {
-		strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", tm);
 		fprintf(out, "{\n  \"timestamp\": \"%s\",\n  ", ts);
 		cpufreq_json(out, cf, cf_prev);
 		if (with_cpuidle) {
@@ -97,7 +168,8 @@ static void usage(const char *prog)
 	printf("Usage: %s [OPTIONS]\n", prog);
 	printf("Power Consumption Logger - logs CPU freq, C-states, thermal, battery, regulators\n\n");
 	printf("Options:\n");
-	printf("  -i, --interval SEC   Polling interval in seconds (default: %d)\n", DEFAULT_INTERVAL_SEC);
+	printf("  -i, --interval TIME  Sample interval: e.g. 5, 5s, 100ms (default: 5s)\n");
+	printf("  -d, --duration TIME  Stop after TIME (e.g. 10s); omit to run until Ctrl+C\n");
 	printf("  -o, --output FILE    Write log to file (default: stdout)\n");
 	printf("  -j, --json           Output in JSON format (pretty-printed)\n");
 	printf("  -T, --alert-thermal C  Alert when any zone reaches C °C (stderr + JSON alerts)\n");
@@ -107,7 +179,8 @@ static void usage(const char *prog)
 
 int main(int argc, char *argv[])
 {
-	int interval = DEFAULT_INTERVAL_SEC;
+	unsigned interval_ms = DEFAULT_INTERVAL_MS;
+	unsigned duration_ms = 0;
 	FILE *out = stdout;
 	char *out_path = NULL;
 	bool json_mode = false;
@@ -117,6 +190,7 @@ int main(int argc, char *argv[])
 	int opt;
 	static struct option long_opts[] = {
 		{ "interval", required_argument, 0, 'i' },
+		{ "duration", required_argument, 0, 'd' },
 		{ "output",   required_argument, 0, 'o' },
 		{ "json",     no_argument,       0, 'j' },
 		{ "help",     no_argument,       0, 'h' },
@@ -129,12 +203,21 @@ int main(int argc, char *argv[])
 	alert_config_init(&alert_cfg);
 	alert_edge_init(&alert_edge);
 
-	while ((opt = getopt_long(argc, argv, "i:o:jhwT:B:", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:d:o:jhwT:B:", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
-			interval = atoi(optarg);
-			if (interval < 1)
-				interval = 1;
+			if (parse_time_ms(optarg, &interval_ms) != 0 || interval_ms < 1u) {
+				fprintf(stderr, "%s: invalid interval: %s (use e.g. 5, 5s, 100ms)\n",
+					argv[0], optarg);
+				return 1;
+			}
+			break;
+		case 'd':
+			if (parse_time_ms(optarg, &duration_ms) != 0 || duration_ms < 1u) {
+				fprintf(stderr, "%s: invalid duration: %s (use e.g. 10s, 500ms)\n",
+					argv[0], optarg);
+				return 1;
+			}
 			break;
 		case 'o':
 			out_path = optarg;
@@ -178,14 +261,33 @@ int main(int argc, char *argv[])
 	thermal_data_t th_prev = {0};
 	battery_data_t bat = {0};
 	regulator_data_t reg = {0};
+	struct timespec t0;
+
+	clock_gettime(CLOCK_MONOTONIC, &t0);
 
 	while (running) {
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
 			with_cpuidle, &alert_cfg, &alert_edge);
 		cf_prev = cf;
 		th_prev = th;
-		if (running)
-			sleep(interval);
+
+		if (duration_ms > 0 && monotonic_ms_since(&t0) >= (uint64_t)duration_ms)
+			break;
+
+		if (!running)
+			break;
+
+		if (duration_ms > 0) {
+			uint64_t elapsed = monotonic_ms_since(&t0);
+			uint64_t remaining;
+
+			if (elapsed >= (uint64_t)duration_ms)
+				break;
+			remaining = (uint64_t)duration_ms - elapsed;
+			sleep_ms(interval_ms < remaining ? interval_ms : (unsigned)remaining);
+		} else {
+			sleep_ms(interval_ms);
+		}
 	}
 
 	if (out_path && out)

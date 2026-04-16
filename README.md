@@ -19,8 +19,14 @@ make
 # Log to stdout every 5 seconds (default)
 ./powerlog
 
-# Custom interval (e.g. every 2 seconds)
+# Custom interval (bare number = seconds; suffix `s` or `ms`)
 ./powerlog -i 2
+./powerlog -i 100ms
+
+# Time-series: sample every 100ms for 10 seconds, then exit
+./powerlog --interval 100ms --duration 10s
+
+Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 
 # Log to file
 ./powerlog -o /var/log/powerlog.txt
@@ -37,7 +43,8 @@ make
 
 | Option | Description |
 |--------|-------------|
-| `-i, --interval SEC` | Polling interval in seconds (default: 5) |
+| `-i, --interval TIME` | Sample period: `5` or `5s` = seconds, `100ms` = milliseconds (default: 5s) |
+| `-d, --duration TIME` | Stop after TIME (same format as interval); omit to run until interrupted |
 | `-o, --output FILE` | Write log to file instead of stdout |
 | `-j, --json` | Output in JSON format (pretty-printed) |
 | `-w, --with-cpuidle` | Include C-state (cpuidle) data |

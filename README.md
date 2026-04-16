@@ -52,6 +52,7 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 | `-B, --alert-battery PCT` | Alert when battery is at or below PCT % while discharging |
 | `-h, --help` | Show help |
 | `-a, --all` | print all |
+| `-b, --brief` | print brief table |
 
 ## Alerts
 

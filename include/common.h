@@ -7,6 +7,11 @@
 
 #define SYSFS_PATH_MAX 256
 #define READ_BUF_SIZE  64
+#define LOG_TEXT_WIDTH 72
+
+/* Human-readable text log: banner and section underlines */
+void log_text_timestamp(FILE *out, const char *timestamp);
+void log_text_section(FILE *out, const char *title);
 
 /* Read contents of a sysfs file into buf, null-terminated. Returns bytes read or -1 on error. */
 int read_sysfs(const char *path, char *buf, size_t buf_size);

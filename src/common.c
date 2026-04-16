@@ -37,6 +37,31 @@ bool path_exists(const char *path)
 	return access(path, F_OK) == 0;
 }
 
+void log_text_timestamp(FILE *out, const char *timestamp)
+{
+	int i;
+
+	fputc('\n', out);
+	for (i = 0; i < LOG_TEXT_WIDTH; i++)
+		fputc('=', out);
+	fputc('\n', out);
+	fprintf(out, "  %s\n", timestamp);
+	for (i = 0; i < LOG_TEXT_WIDTH; i++)
+		fputc('=', out);
+	fputc('\n', out);
+}
+
+void log_text_section(FILE *out, const char *title)
+{
+	int i;
+
+	fputc('\n', out);
+	fprintf(out, "%s\n", title);
+	for (i = 0; i < LOG_TEXT_WIDTH; i++)
+		fputc('-', out);
+	fputc('\n', out);
+}
+
 void json_escape_fprintf(FILE *out, const char *s)
 {
 	unsigned char c;

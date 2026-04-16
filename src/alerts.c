@@ -1,5 +1,6 @@
 #include "alerts.h"
 #include "common.h"
+#include "thermal.h"
 #include <stdio.h>
 #include <strings.h>
 
@@ -18,6 +19,7 @@ void alert_edge_init(alert_edge_state_t *st)
 static void thermal_worst(const thermal_data_t *th, int *max_mc, char *zone, size_t zone_len)
 {
 	int i;
+	char label[64];
 
 	*max_mc = -1;
 	if (zone_len > 0)
@@ -28,7 +30,8 @@ static void thermal_worst(const thermal_data_t *th, int *max_mc, char *zone, siz
 			continue;
 		if (*max_mc < 0 || th->temp_mc[i] > *max_mc) {
 			*max_mc = th->temp_mc[i];
-			snprintf(zone, zone_len, "%s", th->type[i][0] ? th->type[i] : "zone");
+			thermal_zone_label(th->type[i][0] ? th->type[i] : "zone", label, sizeof(label));
+			snprintf(zone, zone_len, "%s", label);
 		}
 	}
 }

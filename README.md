@@ -27,6 +27,10 @@ make
 
 # Combined
 ./powerlog -i 10 -o /var/log/powerlog.txt
+
+# Alerts (stderr on threshold crossing; JSON includes an `alerts` array when active)
+./powerlog -T 80 -B 15
+./powerlog -j -o log.json -T 85
 ```
 
 ## Options
@@ -36,12 +40,20 @@ make
 | `-i, --interval SEC` | Polling interval in seconds (default: 5) |
 | `-o, --output FILE` | Write log to file instead of stdout |
 | `-j, --json` | Output in JSON format (pretty-printed) |
+| `-w, --with-cpuidle` | Include C-state (cpuidle) data |
+| `-T, --alert-thermal C` | Alert when any thermal zone reaches C °C |
+| `-B, --alert-battery PCT` | Alert when battery is at or below PCT % while discharging |
 | `-h, --help` | Show help |
+
+## Alerts
+
+- **Thermal** (`-T`): Compares the hottest zone to the threshold. Messages go to **stderr** when the condition starts or clears (edge-triggered). With `-j`, each snapshot includes an `alerts` array listing current thermal/battery violations.
+- **Battery** (`-B`): Only evaluated while the pack reports **Discharging** (or Unknown). Cleared when capacity rises above the threshold or status changes.
 
 ## Logged Data
 
-- **CPU Frequency**: Current frequency (MHz) and governor per CPU
-- **C-States**: Idle state names, residency time (µs), and usage counts
+- **CPU Frequency**: Current frequency (MHz) and energy performance preference per CPU
+- **C-States** (with `-w`): Idle state names, residency time (µs), and usage counts
 - **Thermal**: Temperature per thermal zone (°C)
 - **Battery**: Capacity (%) and status (Charging/Discharging/Full)
 - **Regulators**: State (enabled/disabled) and voltage (µV) when available

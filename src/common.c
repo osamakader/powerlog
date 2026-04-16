@@ -51,6 +51,20 @@ void log_text_timestamp(FILE *out, const char *timestamp)
 	fputc('\n', out);
 }
 
+void log_text_sample_index(FILE *out, unsigned sample_no)
+{
+	int i;
+
+	fputc('\n', out);
+	for (i = 0; i < LOG_TEXT_WIDTH; i++)
+		fputc('=', out);
+	fputc('\n', out);
+	fprintf(out, "  Sample %u\n", sample_no);
+	for (i = 0; i < LOG_TEXT_WIDTH; i++)
+		fputc('=', out);
+	fputc('\n', out);
+}
+
 void log_text_section(FILE *out, const char *title)
 {
 	int i;

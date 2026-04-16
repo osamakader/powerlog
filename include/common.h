@@ -11,6 +11,7 @@
 
 /* Human-readable text log: banner and section underlines */
 void log_text_timestamp(FILE *out, const char *timestamp);
+void log_text_sample_index(FILE *out, unsigned sample_no);
 void log_text_section(FILE *out, const char *title);
 
 /* Read contents of a sysfs file into buf, null-terminated. Returns bytes read or -1 on error. */

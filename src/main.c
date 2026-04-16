@@ -106,21 +106,13 @@ static void format_ts_wall(char *buf, size_t len, bool json_fmt)
 			 (long)(rtc.tv_nsec / 1000000L));
 }
 
-static void print_timestamp(FILE *out)
-{
-	char buf[TIMESTAMP_BUF_SIZE];
-
-	format_ts_wall(buf, sizeof(buf), false);
-	log_text_timestamp(out, buf);
-}
-
 static void log_all(FILE *out, bool json,
 		    cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
 		    cpuidle_data_t *ci,
 		    thermal_data_t *th, const thermal_data_t *th_prev,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
-		    unsigned interval_ms, bool print_all)
+		    unsigned interval_ms, bool print_all, unsigned sample_no)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
@@ -156,7 +148,14 @@ static void log_all(FILE *out, bool json,
 		alerts_json(out, alerts, th, bat);
 		fprintf(out, "\n}\n");
 	} else {
-		print_timestamp(out);
+		if (sample_no == 1u) {
+			char buf[TIMESTAMP_BUF_SIZE];
+
+			format_ts_wall(buf, sizeof(buf), false);
+			log_text_timestamp(out, buf);
+		} else {
+			log_text_sample_index(out, sample_no);
+		}
 		cpufreq_log(out, cf, cf_prev, print_all);
 		if (print_all && with_cpuidle)
 			cpuidle_log(out, ci);
@@ -274,12 +273,15 @@ int main(int argc, char *argv[])
 	battery_data_t bat = {0};
 	regulator_data_t reg = {0};
 	struct timespec t0;
+	unsigned sample_no = 0;
 
 	clock_gettime(CLOCK_MONOTONIC, &t0);
 
 	while (running) {
+		sample_no++;
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
-			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all);
+			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all,
+			sample_no);
 		cf_prev = cf;
 		th_prev = th;
 

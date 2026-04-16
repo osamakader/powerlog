@@ -42,8 +42,10 @@ static void print_timestamp(FILE *out)
 }
 
 static void log_all(FILE *out, bool json,
-		    cpufreq_data_t *cf, cpuidle_data_t *ci,
-		    thermal_data_t *th, battery_data_t *bat, regulator_data_t *reg,
+		    cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
+		    cpuidle_data_t *ci,
+		    thermal_data_t *th, const thermal_data_t *th_prev,
+		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge)
 {
 	time_t now = time(NULL);
@@ -64,13 +66,13 @@ static void log_all(FILE *out, bool json,
 	if (json) {
 		strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", tm);
 		fprintf(out, "{\n  \"timestamp\": \"%s\",\n  ", ts);
-		cpufreq_json(out, cf);
+		cpufreq_json(out, cf, cf_prev);
 		if (with_cpuidle) {
 			fprintf(out, ",\n  ");
 			cpuidle_json(out, ci);
 		}
 		fprintf(out, ",\n  ");
-		thermal_json(out, th);
+		thermal_json(out, th, th_prev);
 		fprintf(out, ",\n  ");
 		battery_json(out, bat);
 		fprintf(out, ",\n  ");
@@ -80,10 +82,10 @@ static void log_all(FILE *out, bool json,
 		fprintf(out, "\n}\n");
 	} else {
 		print_timestamp(out);
-		cpufreq_log(out, cf);
+		cpufreq_log(out, cf, cf_prev);
 		if (with_cpuidle)
 			cpuidle_log(out, ci);
-		thermal_log(out, th);
+		thermal_log(out, th, th_prev);
 		battery_log(out, bat);
 		regulator_log(out, reg);
 	}
@@ -170,14 +172,18 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, sig_handler);
 
 	cpufreq_data_t cf = {0};
+	cpufreq_data_t cf_prev = {0};
 	cpuidle_data_t ci = {0};
 	thermal_data_t th = {0};
+	thermal_data_t th_prev = {0};
 	battery_data_t bat = {0};
 	regulator_data_t reg = {0};
 
 	while (running) {
-		log_all(out, json_mode, &cf, &ci, &th, &bat, &reg, with_cpuidle, &alert_cfg,
-			&alert_edge);
+		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
+			with_cpuidle, &alert_cfg, &alert_edge);
+		cf_prev = cf;
+		th_prev = th;
 		if (running)
 			sleep(interval);
 	}

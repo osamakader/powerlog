@@ -55,12 +55,30 @@ typedef struct {
 	char key[32];
 	char sysfs[64];
 	int temp_mc;
+	int zone_idx;
 } thermal_mapped_t;
 
 typedef struct {
 	char id[64];
 	int temp_mc;
+	int zone_idx;
 } thermal_other_t;
+
+static void print_temp_c_line(FILE *out, float temp_c)
+{
+	fprintf(out, "%.1f °C", temp_c);
+}
+
+static void print_temp_delta(FILE *out, int zone_idx, const thermal_data_t *curr,
+			     const thermal_data_t *prev)
+{
+	if (!prev || zone_idx < 0 || zone_idx >= prev->num_zones)
+		return;
+	if (curr->temp_mc[zone_idx] < 0 || prev->temp_mc[zone_idx] < 0)
+		return;
+	fprintf(out, " (%+.1f °C)",
+		(curr->temp_mc[zone_idx] - prev->temp_mc[zone_idx]) / 1000.0);
+}
 
 static int key_sort_rank(const char *key)
 {
@@ -131,7 +149,7 @@ void thermal_collect(thermal_data_t *data)
 	data->available = (data->num_zones > 0);
 }
 
-void thermal_log(FILE *out, const thermal_data_t *data)
+void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *prev)
 {
 	thermal_mapped_t mapped[MAX_THERMAL_ZONES];
 	thermal_other_t other[MAX_THERMAL_ZONES];
@@ -149,10 +167,12 @@ void thermal_log(FILE *out, const thermal_data_t *data)
 			snprintf(mapped[nm].key, sizeof(mapped[nm].key), "%s", key);
 			snprintf(mapped[nm].sysfs, sizeof(mapped[nm].sysfs), "%s", t);
 			mapped[nm].temp_mc = data->temp_mc[i];
+			mapped[nm].zone_idx = i;
 			nm++;
 		} else {
 			snprintf(other[no].id, sizeof(other[no].id), "%s", t);
 			other[no].temp_mc = data->temp_mc[i];
+			other[no].zone_idx = i;
 			no++;
 		}
 	}
@@ -164,14 +184,17 @@ void thermal_log(FILE *out, const thermal_data_t *data)
 		int nk = count_key(mapped, nm, mapped[i].key);
 
 		if (mapped[i].temp_mc >= 0) {
-			if (nk > 1)
-				fprintf(out, "  %s (%s): %d.%d °C\n", mapped[i].key, mapped[i].sysfs,
-					mapped[i].temp_mc / 1000,
-					(mapped[i].temp_mc % 1000) / 100);
-			else
-				fprintf(out, "  %s: %d.%d °C\n", mapped[i].key,
-					mapped[i].temp_mc / 1000,
-					(mapped[i].temp_mc % 1000) / 100);
+			if (nk > 1) {
+				fprintf(out, "  %s (%s): ", mapped[i].key, mapped[i].sysfs);
+				print_temp_c_line(out, mapped[i].temp_mc / 1000.0f);
+				print_temp_delta(out, mapped[i].zone_idx, data, prev);
+				fprintf(out, "\n");
+			} else {
+				fprintf(out, "  %s: ", mapped[i].key);
+				print_temp_c_line(out, mapped[i].temp_mc / 1000.0f);
+				print_temp_delta(out, mapped[i].zone_idx, data, prev);
+				fprintf(out, "\n");
+			}
 		} else {
 			fprintf(out, "  %s: N/A\n", mapped[i].key);
 		}
@@ -180,17 +203,19 @@ void thermal_log(FILE *out, const thermal_data_t *data)
 	if (no > 0) {
 		fprintf(out, "  Other sensors:\n");
 		for (i = 0; i < no; i++) {
-			if (other[i].temp_mc >= 0)
-				fprintf(out, "    %s: %d.%d °C\n", other[i].id,
-					other[i].temp_mc / 1000,
-					(other[i].temp_mc % 1000) / 100);
-			else
+			if (other[i].temp_mc >= 0) {
+				fprintf(out, "    %s: ", other[i].id);
+				print_temp_c_line(out, other[i].temp_mc / 1000.0f);
+				print_temp_delta(out, other[i].zone_idx, data, prev);
+				fprintf(out, "\n");
+			} else {
 				fprintf(out, "    %s: N/A\n", other[i].id);
+			}
 		}
 	}
 }
 
-void thermal_json(FILE *out, const thermal_data_t *data)
+void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *prev)
 {
 	thermal_mapped_t mapped[MAX_THERMAL_ZONES];
 	thermal_other_t other[MAX_THERMAL_ZONES];
@@ -214,10 +239,12 @@ void thermal_json(FILE *out, const thermal_data_t *data)
 			snprintf(mapped[nm].key, sizeof(mapped[nm].key), "%s", key);
 			snprintf(mapped[nm].sysfs, sizeof(mapped[nm].sysfs), "%s", t);
 			mapped[nm].temp_mc = data->temp_mc[i];
+			mapped[nm].zone_idx = i;
 			nm++;
 		} else {
 			snprintf(other[no].id, sizeof(other[no].id), "%s", t);
 			other[no].temp_mc = data->temp_mc[i];
+			other[no].zone_idx = i;
 			no++;
 		}
 	}
@@ -265,8 +292,28 @@ void thermal_json(FILE *out, const thermal_data_t *data)
 			fprintf(out, ",\n");
 		fprintf(out, "      {\"id\": \"");
 		json_escape_fprintf(out, other[i].id);
-		fprintf(out, "\", \"temp_c\": %.2f}",
-			other[i].temp_mc >= 0 ? other[i].temp_mc / 1000.0 : -1.0);
+		fprintf(out, "\", \"temp_c\": %.2f", other[i].temp_mc >= 0 ?
+			other[i].temp_mc / 1000.0 : -1.0);
+		if (prev && prev->num_zones > other[i].zone_idx &&
+		    other[i].temp_mc >= 0 && prev->temp_mc[other[i].zone_idx] >= 0) {
+			fprintf(out, ", \"delta_c\": %.2f",
+				(other[i].temp_mc - prev->temp_mc[other[i].zone_idx]) / 1000.0);
+		}
+		fprintf(out, "}");
 	}
-	fprintf(out, "\n    ]\n  }");
+	fprintf(out, "\n    ]");
+	if (prev && prev->num_zones == data->num_zones) {
+		fprintf(out, ",\n    \"zone_delta_c\": [\n");
+		for (i = 0; i < data->num_zones; i++) {
+			if (i > 0)
+				fprintf(out, ",\n");
+			if (data->temp_mc[i] >= 0 && prev->temp_mc[i] >= 0)
+				fprintf(out, "      %.2f",
+					(data->temp_mc[i] - prev->temp_mc[i]) / 1000.0);
+			else
+				fprintf(out, "      null");
+		}
+		fprintf(out, "\n    ]");
+	}
+	fprintf(out, "\n  }");
 }

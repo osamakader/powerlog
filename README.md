@@ -54,7 +54,7 @@ make
 
 - **CPU Frequency**: Current frequency (MHz) and energy performance preference per CPU
 - **C-States** (with `-w`): Idle state names, residency time (µs), and usage counts
-- **Thermal**: Known sysfs types are renamed (e.g. `x86_pkg_temp` → `cpu_package`, `iwlwifi_*` → `wifi`). OEM sensors such as `SEN1`… are listed under **Other sensors**. JSON uses `thermal.mapped` (scalars or per-sysfs objects when several zones share a label) and `thermal.other_sensors`.
+- **Thermal**: Known sysfs types are renamed (e.g. `x86_pkg_temp` → `cpu_package`, `iwlwifi_*` → `wifi`). OEM sensors such as `SEN1`… are listed under **Other sensors**. Text lines append **(Δ °C)** vs the previous sample when available. JSON adds `zone_delta_c` (per thermal zone index), optional `delta_c` on `other_sensors` entries, and `delta_mhz` on each CPU in `cpufreq`.
 - **Battery**: `BAT*` power supplies only (e.g. `BAT0`); HID accessories without capacity are omitted. Text/JSON only list entries with a readable capacity.
 - **Regulators**: State (enabled/disabled) and voltage (µV) when available. The kernel `regulator-dummy` placeholder is omitted.
 

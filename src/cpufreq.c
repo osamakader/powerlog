@@ -45,7 +45,7 @@ void cpufreq_collect(cpufreq_data_t *data)
 	data->available = (data->num_cpus > 0);
 }
 
-void cpufreq_log(FILE *out, const cpufreq_data_t *data)
+void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev)
 {
 	int i;
 
@@ -58,6 +58,11 @@ void cpufreq_log(FILE *out, const cpufreq_data_t *data)
 			fprintf(out, "  cpu%d: %d MHz", i, data->freq_khz[i] / 1000);
 			if (data->energy_pref[i][0])
 				fprintf(out, " [%s]", data->energy_pref[i]);
+			if (prev && prev->num_cpus > i && prev->freq_khz[i] >= 0) {
+				int dmhz = (data->freq_khz[i] - prev->freq_khz[i]) / 1000;
+
+				fprintf(out, " (%+d MHz)", dmhz);
+			}
 			fprintf(out, "\n");
 		} else {
 			fprintf(out, "  cpu%d: N/A\n", i);
@@ -65,7 +70,7 @@ void cpufreq_log(FILE *out, const cpufreq_data_t *data)
 	}
 }
 
-void cpufreq_json(FILE *out, const cpufreq_data_t *data)
+void cpufreq_json(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev)
 {
 	int i;
 
@@ -79,6 +84,10 @@ void cpufreq_json(FILE *out, const cpufreq_data_t *data)
 			fprintf(out, ", \"energy_pref\": \"");
 			json_escape_fprintf(out, data->energy_pref[i]);
 			fprintf(out, "\"");
+		}
+		if (prev && prev->num_cpus > i && data->freq_khz[i] >= 0 && prev->freq_khz[i] >= 0) {
+			fprintf(out, ", \"delta_mhz\": %d",
+				(data->freq_khz[i] - prev->freq_khz[i]) / 1000);
 		}
 		fprintf(out, "}");
 	}

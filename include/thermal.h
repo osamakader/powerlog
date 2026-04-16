@@ -14,8 +14,10 @@ typedef struct {
 } thermal_data_t;
 
 void thermal_collect(thermal_data_t *data);
-void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *prev);
-void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *prev);
+void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *prev,
+		   unsigned interval_ms);
+void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *prev,
+		  unsigned interval_ms);
 
 /* Display label for sysfs type (mapped names or raw); for alerts / UI */
 void thermal_zone_label(const char *sysfs_type, char *out, size_t outlen);

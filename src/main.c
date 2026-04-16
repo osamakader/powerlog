@@ -119,7 +119,8 @@ static void log_all(FILE *out, bool json,
 		    cpuidle_data_t *ci,
 		    thermal_data_t *th, const thermal_data_t *th_prev,
 		    battery_data_t *bat, regulator_data_t *reg,
-		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge)
+		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
+		    unsigned interval_ms)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
@@ -143,7 +144,7 @@ static void log_all(FILE *out, bool json,
 			cpuidle_json(out, ci);
 		}
 		fprintf(out, ",\n  ");
-		thermal_json(out, th, th_prev);
+		thermal_json(out, th, th_prev, interval_ms);
 		fprintf(out, ",\n  ");
 		battery_json(out, bat);
 		fprintf(out, ",\n  ");
@@ -156,7 +157,7 @@ static void log_all(FILE *out, bool json,
 		cpufreq_log(out, cf, cf_prev);
 		if (with_cpuidle)
 			cpuidle_log(out, ci);
-		thermal_log(out, th, th_prev);
+		thermal_log(out, th, th_prev, interval_ms);
 		battery_log(out, bat);
 		regulator_log(out, reg);
 	}
@@ -267,7 +268,7 @@ int main(int argc, char *argv[])
 
 	while (running) {
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
-			with_cpuidle, &alert_cfg, &alert_edge);
+			with_cpuidle, &alert_cfg, &alert_edge, interval_ms);
 		cf_prev = cf;
 		th_prev = th;
 

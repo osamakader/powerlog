@@ -10,6 +10,7 @@ typedef struct {
 	char name[MAX_BATTERIES][32];
 	int capacity[MAX_BATTERIES];
 	char status[MAX_BATTERIES][32];  /* Charging, Discharging, Full, Unknown */
+	long power_uw[MAX_BATTERIES];    /* sysfs power_now or V*I; µW; -1 = unknown */
 	int num_batteries;
 	bool available;
 } battery_data_t;

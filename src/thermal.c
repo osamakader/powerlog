@@ -41,7 +41,7 @@ void thermal_log(FILE *out, const thermal_data_t *data)
 	if (!data->available)
 		return;
 
-	fprintf(out, "[Thermal]\n");
+	log_text_section(out, "Thermal");
 	for (i = 0; i < data->num_zones; i++) {
 		if (data->temp_mc[i] >= 0)
 			fprintf(out, "  %s: %d.%d °C\n",

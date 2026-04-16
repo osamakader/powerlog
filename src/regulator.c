@@ -3,7 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
+
+static bool regulator_is_noise(const char *name)
+{
+	return strcasecmp(name, "regulator-dummy") == 0;
+}
 
 static int find_regulators(char names[][32], int max)
 {
@@ -64,27 +70,37 @@ void regulator_collect(regulator_data_t *data)
 void regulator_log(FILE *out, const regulator_data_t *data)
 {
 	int i;
+	int n;
 
 	if (!data->available)
 		return;
 
-	fprintf(out, "[Regulators]\n");
+	n = 0;
 	for (i = 0; i < data->num_regulators; i++) {
+		if (regulator_is_noise(data->name[i]))
+			continue;
+		if (n == 0)
+			log_text_section(out, "Regulators");
 		fprintf(out, "  %s: %s", data->name[i],
 			data->state[i][0] ? data->state[i] : "?");
 		if (data->microvolts[i] >= 0)
 			fprintf(out, " (%d µV)", data->microvolts[i]);
 		fprintf(out, "\n");
+		n++;
 	}
 }
 
 void regulator_json(FILE *out, const regulator_data_t *data)
 {
 	int i;
+	int n;
 
 	fprintf(out, "\"regulators\": [\n    ");
+	n = 0;
 	for (i = 0; i < data->num_regulators; i++) {
-		if (i > 0)
+		if (regulator_is_noise(data->name[i]))
+			continue;
+		if (n > 0)
 			fprintf(out, ",\n    ");
 		fprintf(out, "{\"name\": \"");
 		json_escape_fprintf(out, data->name[i]);
@@ -94,6 +110,7 @@ void regulator_json(FILE *out, const regulator_data_t *data)
 		if (data->microvolts[i] >= 0)
 			fprintf(out, ", \"microvolts\": %d", data->microvolts[i]);
 		fprintf(out, "}");
+		n++;
 	}
 	fprintf(out, "\n  ]");
 }

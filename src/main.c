@@ -12,6 +12,7 @@
 #include <getopt.h>
 
 #include <stdbool.h>
+#include "common.h"
 #include "alerts.h"
 #include "cpufreq.h"
 #include "cpuidle.h"
@@ -37,7 +38,7 @@ static void print_timestamp(FILE *out)
 	char buf[TIMESTAMP_BUF_SIZE];
 
 	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", tm);
-	fprintf(out, "\n=== %s ===\n", buf);
+	log_text_timestamp(out, buf);
 }
 
 static void log_all(FILE *out, bool json,

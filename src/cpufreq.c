@@ -53,7 +53,7 @@ void cpufreq_log(FILE *out, const cpufreq_data_t *data)
 	if (!data->available)
 		return;
 
-	fprintf(out, "[CPU Frequency]\n");
+	log_text_section(out, "CPU frequency");
 	for (i = 0; i < data->num_cpus; i++) {
 		if (data->freq_khz[i] >= 0) {
 			fprintf(out, "  cpu%d: %d MHz", i, data->freq_khz[i] / 1000);

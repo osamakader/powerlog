@@ -18,11 +18,11 @@ static int find_batteries(char names[][32], int max)
 	while ((ent = readdir(dir)) != NULL && count < max) {
 		if (ent->d_name[0] == '.')
 			continue;
-		if (strncmp(ent->d_name, "BAT", 3) == 0 ||
-		    strstr(ent->d_name, "battery") != NULL) {
-			snprintf(names[count], 32, "%.31s", ent->d_name);
-			count++;
-		}
+		/* BAT0/BAT1/… only; avoids hidpp_battery_*, etc. with no useful capacity */
+		if (strncmp(ent->d_name, "BAT", 3) != 0)
+			continue;
+		snprintf(names[count], 32, "%.31s", ent->d_name);
+		count++;
 	}
 	closedir(dir);
 	return count;
@@ -57,35 +57,42 @@ void battery_collect(battery_data_t *data)
 void battery_log(FILE *out, const battery_data_t *data)
 {
 	int i;
+	int n;
 
 	if (!data->available)
 		return;
 
-	fprintf(out, "[Battery]\n");
+	n = 0;
 	for (i = 0; i < data->num_batteries; i++) {
-		if (data->capacity[i] >= 0)
-			fprintf(out, "  %s: %d%% (%s)\n", data->name[i], data->capacity[i],
-				data->status[i][0] ? data->status[i] : "?");
-		else
-			fprintf(out, "  %s: N/A (%s)\n", data->name[i],
-				data->status[i][0] ? data->status[i] : "?");
+		if (data->capacity[i] < 0)
+			continue;
+		if (n == 0)
+			log_text_section(out, "Battery");
+		fprintf(out, "  %s: %d%% (%s)\n", data->name[i], data->capacity[i],
+			data->status[i][0] ? data->status[i] : "?");
+		n++;
 	}
 }
 
 void battery_json(FILE *out, const battery_data_t *data)
 {
 	int i;
+	int n;
 
 	fprintf(out, "\"battery\": [\n    ");
+	n = 0;
 	for (i = 0; i < data->num_batteries; i++) {
-		if (i > 0)
+		if (data->capacity[i] < 0)
+			continue;
+		if (n > 0)
 			fprintf(out, ",\n    ");
 		fprintf(out, "{\"name\": \"");
 		json_escape_fprintf(out, data->name[i]);
 		fprintf(out, "\", \"capacity\": %d, \"status\": \"",
-			data->capacity[i] >= 0 ? data->capacity[i] : -1);
+			data->capacity[i]);
 		json_escape_fprintf(out, data->status[i][0] ? data->status[i] : "?");
 		fprintf(out, "\"}");
+		n++;
 	}
 	fprintf(out, "\n  ]");
 }

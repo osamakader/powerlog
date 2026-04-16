@@ -55,7 +55,7 @@ void cpuidle_log(FILE *out, const cpuidle_data_t *data)
 	if (!data->available)
 		return;
 
-	fprintf(out, "[C-States]\n");
+	log_text_section(out, "C-states (cpuidle)");
 	for (cpu = 0; cpu < data->num_cpus; cpu++) {
 		fprintf(out, "  cpu%d:\n", cpu);
 		for (state = 0; state < data->num_states[cpu]; state++) {

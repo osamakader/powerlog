@@ -3,6 +3,25 @@
 #include "thermal.h"
 #include <stdio.h>
 #include <strings.h>
+#include <unistd.h>
+
+/* stderr: bold red for new violations, bold yellow for clear; plain *** if not a tty */
+static void alert_banner(FILE *err, bool is_new_violation)
+{
+	int fd = fileno(err);
+
+	if (!is_new_violation) {
+		if (isatty(fd))
+			fprintf(err, "\033[1;33m*** alert cleared ***\033[0m ");
+		else
+			fprintf(err, "*** alert cleared *** ");
+		return;
+	}
+	if (isatty(fd))
+		fprintf(err, "\033[1;31m*** ALERT ***\033[0m ");
+	else
+		fprintf(err, "*** ALERT *** ");
+}
 
 void alert_config_init(alert_config_t *cfg)
 {
@@ -86,22 +105,26 @@ void alerts_notify_edges(FILE *err, const alert_config_t *cfg, alert_edge_state_
 	if (cfg->thermal_max_c >= 0) {
 		if (now_thermal && !edge->thermal_hot) {
 			thermal_worst(th, &max_mc, zone, sizeof(zone));
-			fprintf(err, "[ALERT] %s thermal: %s at %d.%d°C (threshold %d°C)\n", ts, zone,
+			alert_banner(err, true);
+			fprintf(err, "%s thermal: %s at %d.%d°C (threshold %d°C)\n", ts, zone,
 				max_mc / 1000, (max_mc % 1000) / 100, cfg->thermal_max_c);
 			edge->thermal_hot = true;
 		} else if (!now_thermal && edge->thermal_hot) {
-			fprintf(err, "[ALERT] %s thermal: back below %d°C\n", ts, cfg->thermal_max_c);
+			alert_banner(err, false);
+			fprintf(err, "%s thermal: back below %d°C\n", ts, cfg->thermal_max_c);
 			edge->thermal_hot = false;
 		}
 	}
 
 	if (cfg->battery_low_pct >= 0) {
 		if (now_battery && !edge->battery_low) {
-			fprintf(err, "[ALERT] %s battery: at or below %d%% while discharging\n", ts,
+			alert_banner(err, true);
+			fprintf(err, "%s battery: at or below %d%% while discharging\n", ts,
 				cfg->battery_low_pct);
 			edge->battery_low = true;
 		} else if (!now_battery && edge->battery_low) {
-			fprintf(err, "[ALERT] %s battery: recovered above %d%%\n", ts,
+			alert_banner(err, false);
+			fprintf(err, "%s battery: recovered above %d%%\n", ts,
 				cfg->battery_low_pct);
 			edge->battery_low = false;
 		}

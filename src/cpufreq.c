@@ -5,8 +5,8 @@
 #include <stdlib.h>
 
 /* Population variance of per-CPU MHz (integer MHz from kHz/1000) */
-static void cpufreq_stats(const cpufreq_data_t *data, double *avg_mhz, int *min_mhz, int *max_mhz,
-			  double *var_mhz2)
+static void cpufreq_stats_internal(const cpufreq_data_t *data, double *avg_mhz, int *min_mhz,
+				   int *max_mhz, double *var_mhz2)
 {
 	int n = 0;
 	double sum_mhz = 0.0;
@@ -50,6 +50,12 @@ static void cpufreq_stats(const cpufreq_data_t *data, double *avg_mhz, int *min_
 		}
 		*var_mhz2 = acc / (double)n;
 	}
+}
+
+void cpufreq_summary(const cpufreq_data_t *data, double *avg_mhz, int *min_mhz, int *max_mhz,
+		     double *var_mhz2)
+{
+	cpufreq_stats_internal(data, avg_mhz, min_mhz, max_mhz, var_mhz2);
 }
 
 void cpufreq_collect(cpufreq_data_t *data)
@@ -106,7 +112,7 @@ void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *pr
 		double avg, var;
 		int min_mhz, max_mhz;
 
-		cpufreq_stats(data, &avg, &min_mhz, &max_mhz, &var);
+		cpufreq_stats_internal(data, &avg, &min_mhz, &max_mhz, &var);
 		if (min_mhz >= 0)
 			fprintf(out, "  Summary: avg %.0f MHz, min %d MHz, max %d MHz, variance %.0f MHz²\n",
 				avg, min_mhz, max_mhz, var);
@@ -136,7 +142,7 @@ void cpufreq_json(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *p
 	double avg, var;
 	int min_mhz, max_mhz;
 
-	cpufreq_stats(data, &avg, &min_mhz, &max_mhz, &var);
+	cpufreq_stats_internal(data, &avg, &min_mhz, &max_mhz, &var);
 
 	fprintf(out, "\"cpufreq\": {\n    \"summary\": ");
 	if (data->available && min_mhz >= 0) {

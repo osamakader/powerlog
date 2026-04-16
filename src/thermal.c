@@ -150,8 +150,8 @@ void thermal_collect(thermal_data_t *data)
 }
 
 /* Hottest zone across all thermal_zone* entries */
-static bool thermal_hottest(const thermal_data_t *data, char *label, size_t lablen, int *zone_idx,
-			    float *temp_c)
+bool thermal_hottest_zone(const thermal_data_t *data, char *label, size_t lablen, float *temp_c,
+			  int *zone_idx)
 {
 	int max_mc = -1;
 	int hi = -1;
@@ -191,7 +191,7 @@ void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *pr
 
 	if (!full) {
 		log_text_section(out, "Thermal");
-		if (thermal_hottest(data, hot_label, sizeof(hot_label), &zhot, &tc)) {
+		if (thermal_hottest_zone(data, hot_label, sizeof(hot_label), &tc, &zhot)) {
 			fprintf(out, "  Hottest: %s %.1f °C", hot_label, tc);
 			if (prev && prev->num_zones > zhot && interval_ms > 0 &&
 			    data->temp_mc[zhot] >= 0 && prev->temp_mc[zhot] >= 0) {
@@ -228,7 +228,7 @@ void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *pr
 	qsort(mapped, (size_t)nm, sizeof(mapped[0]), cmp_mapped);
 
 	log_text_section(out, "Thermal");
-	if (thermal_hottest(data, hot_label, sizeof(hot_label), &zhot, &tc)) {
+	if (thermal_hottest_zone(data, hot_label, sizeof(hot_label), &tc, &zhot)) {
 		fprintf(out, "  Hottest: %s %.1f °C", hot_label, tc);
 		if (prev && prev->num_zones > zhot && interval_ms > 0 &&
 		    data->temp_mc[zhot] >= 0 && prev->temp_mc[zhot] >= 0) {
@@ -295,7 +295,7 @@ void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *p
 		return;
 	}
 
-	have_hot = thermal_hottest(data, hot_label, sizeof(hot_label), &zhot, &tc);
+	have_hot = thermal_hottest_zone(data, hot_label, sizeof(hot_label), &tc, &zhot);
 
 	for (i = 0; i < data->num_zones; i++) {
 		const char *t = data->type[i][0] ? data->type[i] : "zone";

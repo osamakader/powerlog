@@ -22,4 +22,8 @@ void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *p
 /* Display label for sysfs type (mapped names or raw); for alerts / UI */
 void thermal_zone_label(const char *sysfs_type, char *out, size_t outlen);
 
+/* Hottest zone across thermal_zone*; label is mapped display name */
+bool thermal_hottest_zone(const thermal_data_t *data, char *label, size_t lablen, float *temp_c,
+			  int *zone_idx);
+
 #endif /* THERMAL_H */

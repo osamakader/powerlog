@@ -17,6 +17,7 @@
 #include <signal.h>
 #include <getopt.h>
 #include <strings.h>
+#include <math.h>
 
 #include <stdbool.h>
 #include "common.h"
@@ -106,13 +107,164 @@ static void format_ts_wall(char *buf, size_t len, bool json_fmt)
 			 (long)(rtc.tv_nsec / 1000000L));
 }
 
+static bool brief_bat_discharging(const char *status)
+{
+	if (!status || !status[0])
+		return true;
+	return strcasecmp(status, "Discharging") == 0 || strcasecmp(status, "Unknown") == 0;
+}
+
+/*
+ * First row prints start time once; then one row per sample (no per-row timestamp).
+ * Deltas vs previous row:
+ * (Δcpu = avg MHz change, ΔT = hottest °C change, Δbat = first-battery % change, ΔW = drain W change).
+ */
+static void log_text_brief(FILE *out, unsigned sample_no, const char *ts_human,
+			   const cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
+			   const thermal_data_t *th, const thermal_data_t *th_prev,
+			   const battery_data_t *bat)
+{
+	static double prev_drain;
+	static int prev_bat_pct;
+	static bool prev_ok;
+
+	double avg, var;
+	int min_mhz, max_mhz;
+	char hot_lbl[64];
+	float hot_c = -1000.0f;
+	int zhot;
+	int i;
+	int bat_pct = -1;
+	double drain_w = -1.0;
+	bool have_drain = false;
+	char davg_s[16], dhot_s[16], dbat_s[16], ddw_s[16];
+	bool has_hot;
+
+	if (sample_no == 1u) {
+		prev_ok = false;
+		fprintf(out, "Start: %s\n\n", ts_human);
+		fprintf(out,
+			"%-5s  %-8s  %-8s  %-9s  %-6s  %-8s  %-5s  %-6s  %-7s  %-8s\n",
+			"#", "cpu_avg", "cpu_max", "Δcpu%", "hot_C", "ΔT", "bat%", "Δbat", "ΔW",
+			"drain_W");
+		fprintf(out,
+			"-----  --------  --------  ---------  ------  --------  -----  ------  -------  "
+			"--------\n");
+	}
+
+	if (cf->available)
+		cpufreq_summary(cf, &avg, &min_mhz, &max_mhz, &var);
+	else {
+		avg = 0.0;
+		min_mhz = -1;
+		max_mhz = -1;
+	}
+
+	has_hot = thermal_hottest_zone(th, hot_lbl, sizeof(hot_lbl), &hot_c, &zhot);
+
+	for (i = 0; i < bat->num_batteries; i++) {
+		if (bat->capacity[i] >= 0) {
+			bat_pct = bat->capacity[i];
+			break;
+		}
+	}
+	for (i = 0; i < bat->num_batteries; i++) {
+		if (bat->power_uw[i] != -1 && brief_bat_discharging(bat->status[i])) {
+			drain_w = fabs((double)bat->power_uw[i]) / 1e6;
+			have_drain = true;
+			break;
+		}
+	}
+
+	if (prev_ok) {
+		if (cf_prev && cf_prev->available) {
+			double pavg, pvar;
+			int pmin, pmax;
+
+			cpufreq_summary(cf_prev, &pavg, &pmin, &pmax, &pvar);
+			if (pavg > 1e-6)
+				snprintf(davg_s, sizeof(davg_s), "%+.0f%%",
+					 (avg - pavg) / pavg * 100.0);
+			else
+				snprintf(davg_s, sizeof(davg_s), "%s", "-");
+		} else {
+			snprintf(davg_s, sizeof(davg_s), "%s", "-");
+		}
+
+		if (th_prev && th_prev->available) {
+			char pl[64];
+			float ph;
+			int pz;
+
+			if (has_hot && thermal_hottest_zone(th_prev, pl, sizeof(pl), &ph, &pz))
+				snprintf(dhot_s, sizeof(dhot_s), "%+6.1f", (double)hot_c - (double)ph);
+			else
+				snprintf(dhot_s, sizeof(dhot_s), "%6s", "-");
+		} else {
+			snprintf(dhot_s, sizeof(dhot_s), "%6s", "-");
+		}
+
+		if (prev_bat_pct >= 0 && bat_pct >= 0)
+			snprintf(dbat_s, sizeof(dbat_s), "%+5d", bat_pct - prev_bat_pct);
+		else
+			snprintf(dbat_s, sizeof(dbat_s), "%5s", "-");
+
+		if (have_drain && prev_drain >= 0.0)
+			snprintf(ddw_s, sizeof(ddw_s), "%+6.2f", drain_w - prev_drain);
+		else
+			snprintf(ddw_s, sizeof(ddw_s), "%6s", "-");
+	} else {
+		snprintf(davg_s, sizeof(davg_s), "%s", "-");
+		snprintf(dhot_s, sizeof(dhot_s), "%s", "-");
+		snprintf(dbat_s, sizeof(dbat_s), "%s", "-");
+		snprintf(ddw_s, sizeof(ddw_s), "%s", "-");
+	}
+
+	fprintf(out, "%-5u  ", sample_no);
+
+	if (cf->available && min_mhz >= 0)
+		fprintf(out, "%-8.0f  %-8d  ", avg, max_mhz);
+	else
+		fprintf(out, "%-8s  %-8s  ", "N/A", "N/A");
+
+	fprintf(out, "%-9s  ", davg_s);
+
+	if (has_hot)
+		fprintf(out, "%-6.1f  ", (double)hot_c);
+	else
+		fprintf(out, "%-6s  ", "N/A");
+
+	fprintf(out, "%-8s  ", dhot_s);
+
+	if (bat_pct >= 0) {
+		char bcol[12];
+
+		snprintf(bcol, sizeof(bcol), "%d%%", bat_pct);
+		fprintf(out, "%-5s  ", bcol);
+	} else {
+		fprintf(out, "%-5s  ", "N/A");
+	}
+
+	fprintf(out, "%-6s  ", dbat_s);
+	fprintf(out, "%-7s  ", ddw_s);
+
+	if (have_drain)
+		fprintf(out, "%-8.2f\n", drain_w);
+	else
+		fprintf(out, "%-8s\n", "N/A");
+
+	prev_bat_pct = bat_pct;
+	prev_drain = have_drain ? drain_w : -1.0;
+	prev_ok = true;
+}
+
 static void log_all(FILE *out, bool json,
 		    cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
 		    cpuidle_data_t *ci,
 		    thermal_data_t *th, const thermal_data_t *th_prev,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
-		    unsigned interval_ms, bool print_all, unsigned sample_no)
+		    unsigned interval_ms, bool print_all, bool brief_mode, unsigned sample_no)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
@@ -147,6 +299,8 @@ static void log_all(FILE *out, bool json,
 		fprintf(out, ",\n  ");
 		alerts_json(out, alerts, th, bat);
 		fprintf(out, "\n}\n");
+	} else if (brief_mode) {
+		log_text_brief(out, sample_no, ts_human, cf, cf_prev, th, th_prev, bat);
 	} else {
 		if (sample_no == 1u) {
 			char buf[TIMESTAMP_BUF_SIZE];
@@ -178,6 +332,8 @@ static void usage(const char *prog)
 	printf("  -j, --json           Output in JSON format (pretty-printed)\n");
 	printf("  -a, --all            Text: print every CPU, thermal zone, regulators, etc.\n");
 	printf("                       (default: summary + hottest thermal + battery only)\n");
+	printf("  -b, --brief          Text: one table row per sample (timestamp + metrics + Δ vs prev)\n");
+	printf("                       (ignored with -j; overrides default / -a layout)\n");
 	printf("  -T, --alert-thermal C  Alert when any zone reaches C °C (stderr + JSON alerts)\n");
 	printf("  -B, --alert-battery PCT Alert when battery ≤ PCT%% while discharging\n");
 	printf("  -h, --help           Show this help\n");
@@ -191,6 +347,7 @@ int main(int argc, char *argv[])
 	char *out_path = NULL;
 	bool json_mode = false;
 	bool print_all = false;
+	bool brief_mode = false;
 	bool with_cpuidle = false;
 	alert_config_t alert_cfg;
 	alert_edge_state_t alert_edge;
@@ -205,13 +362,14 @@ int main(int argc, char *argv[])
 		{ "alert-thermal", required_argument, 0, 'T' },
 		{ "alert-battery", required_argument, 0, 'B' },
 		{ "all", no_argument, 0, 'a' },
+		{ "brief", no_argument, 0, 'b' },
 		{ 0, 0, 0, 0 }
 	};
 
 	alert_config_init(&alert_cfg);
 	alert_edge_init(&alert_edge);
 
-	while ((opt = getopt_long(argc, argv, "i:d:o:jhwaT:B:", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:d:o:jhwabT:B:", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			if (parse_time_ms(optarg, &interval_ms) != 0 || interval_ms < 1u) {
@@ -242,6 +400,9 @@ int main(int argc, char *argv[])
 		case 'a':
 			print_all = true;
 			break;
+		case 'b':
+			brief_mode = true;
+			break;
 		case 'T':
 			alert_cfg.thermal_max_c = atoi(optarg);
 			break;
@@ -253,6 +414,9 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 	}
+
+	if (json_mode)
+		brief_mode = false;
 
 	if (out_path) {
 		out = fopen(out_path, "a");
@@ -281,7 +445,7 @@ int main(int argc, char *argv[])
 		sample_no++;
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
 			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all,
-			sample_no);
+			brief_mode, sample_no);
 		cf_prev = cf;
 		th_prev = th;
 

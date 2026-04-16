@@ -15,7 +15,7 @@ typedef struct {
 
 void thermal_collect(thermal_data_t *data);
 void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *prev,
-		   unsigned interval_ms);
+		   unsigned interval_ms, bool full);
 void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *prev,
 		  unsigned interval_ms);
 

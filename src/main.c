@@ -120,16 +120,19 @@ static void log_all(FILE *out, bool json,
 		    thermal_data_t *th, const thermal_data_t *th_prev,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
-		    unsigned interval_ms)
+		    unsigned interval_ms, bool print_all)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
 
 	cpufreq_collect(cf);
-	cpuidle_collect(ci);
 	thermal_collect(th);
 	battery_collect(bat);
-	regulator_collect(reg);
+	if (json || print_all) {
+		if (with_cpuidle)
+			cpuidle_collect(ci);
+		regulator_collect(reg);
+	}
 
 	format_ts_wall(ts_human, sizeof(ts_human), false);
 	format_ts_wall(ts, sizeof(ts), true);
@@ -154,12 +157,13 @@ static void log_all(FILE *out, bool json,
 		fprintf(out, "\n}\n");
 	} else {
 		print_timestamp(out);
-		cpufreq_log(out, cf, cf_prev);
-		if (with_cpuidle)
+		cpufreq_log(out, cf, cf_prev, print_all);
+		if (print_all && with_cpuidle)
 			cpuidle_log(out, ci);
-		thermal_log(out, th, th_prev, interval_ms);
+		thermal_log(out, th, th_prev, interval_ms, print_all);
 		battery_log(out, bat);
-		regulator_log(out, reg);
+		if (print_all)
+			regulator_log(out, reg);
 	}
 	fflush(out);
 }
@@ -173,6 +177,8 @@ static void usage(const char *prog)
 	printf("  -d, --duration TIME  Stop after TIME (e.g. 10s); omit to run until Ctrl+C\n");
 	printf("  -o, --output FILE    Write log to file (default: stdout)\n");
 	printf("  -j, --json           Output in JSON format (pretty-printed)\n");
+	printf("  -a, --all            Text: print every CPU, thermal zone, regulators, etc.\n");
+	printf("                       (default: summary + hottest thermal + battery only)\n");
 	printf("  -T, --alert-thermal C  Alert when any zone reaches C °C (stderr + JSON alerts)\n");
 	printf("  -B, --alert-battery PCT Alert when battery ≤ PCT%% while discharging\n");
 	printf("  -h, --help           Show this help\n");
@@ -185,6 +191,7 @@ int main(int argc, char *argv[])
 	FILE *out = stdout;
 	char *out_path = NULL;
 	bool json_mode = false;
+	bool print_all = false;
 	bool with_cpuidle = false;
 	alert_config_t alert_cfg;
 	alert_edge_state_t alert_edge;
@@ -198,13 +205,14 @@ int main(int argc, char *argv[])
 		{ "with-cpuidle", no_argument, 0, 'w' },
 		{ "alert-thermal", required_argument, 0, 'T' },
 		{ "alert-battery", required_argument, 0, 'B' },
+		{ "all", no_argument, 0, 'a' },
 		{ 0, 0, 0, 0 }
 	};
 
 	alert_config_init(&alert_cfg);
 	alert_edge_init(&alert_edge);
 
-	while ((opt = getopt_long(argc, argv, "i:d:o:jhwT:B:", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:d:o:jhwaT:B:", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			if (parse_time_ms(optarg, &interval_ms) != 0 || interval_ms < 1u) {
@@ -231,6 +239,9 @@ int main(int argc, char *argv[])
 			return 0;
 		case 'w':
 			with_cpuidle = true;
+			break;
+		case 'a':
+			print_all = true;
 			break;
 		case 'T':
 			alert_cfg.thermal_max_c = atoi(optarg);
@@ -268,7 +279,7 @@ int main(int argc, char *argv[])
 
 	while (running) {
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
-			with_cpuidle, &alert_cfg, &alert_edge, interval_ms);
+			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all);
 		cf_prev = cf;
 		th_prev = th;
 

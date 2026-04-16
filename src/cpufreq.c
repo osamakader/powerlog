@@ -94,7 +94,7 @@ void cpufreq_collect(cpufreq_data_t *data)
 	data->available = (data->num_cpus > 0);
 }
 
-void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev)
+void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev, bool full)
 {
 	int i;
 
@@ -111,6 +111,8 @@ void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *pr
 			fprintf(out, "  Summary: avg %.0f MHz, min %d MHz, max %d MHz, variance %.0f MHz²\n",
 				avg, min_mhz, max_mhz, var);
 	}
+	if (!full)
+		return;
 	for (i = 0; i < data->num_cpus; i++) {
 		if (data->freq_khz[i] >= 0) {
 			fprintf(out, "  cpu%d: %d MHz", i, data->freq_khz[i] / 1000);

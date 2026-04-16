@@ -176,7 +176,7 @@ static bool thermal_hottest(const thermal_data_t *data, char *label, size_t labl
 }
 
 void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *prev,
-		 unsigned interval_ms)
+		 unsigned interval_ms, bool full)
 {
 	thermal_mapped_t mapped[MAX_THERMAL_ZONES];
 	thermal_other_t other[MAX_THERMAL_ZONES];
@@ -188,6 +188,24 @@ void thermal_log(FILE *out, const thermal_data_t *data, const thermal_data_t *pr
 
 	if (!data->available)
 		return;
+
+	if (!full) {
+		log_text_section(out, "Thermal");
+		if (thermal_hottest(data, hot_label, sizeof(hot_label), &zhot, &tc)) {
+			fprintf(out, "  Hottest: %s %.1f °C", hot_label, tc);
+			if (prev && prev->num_zones > zhot && interval_ms > 0 &&
+			    data->temp_mc[zhot] >= 0 && prev->temp_mc[zhot] >= 0) {
+				double dcdt = (double)(data->temp_mc[zhot] - prev->temp_mc[zhot]) /
+					(double)interval_ms;
+
+				fprintf(out, ", dT/dt %+.3f °C/s", dcdt);
+			}
+			fprintf(out, "\n");
+		} else {
+			fprintf(out, "  Hottest: N/A\n");
+		}
+		return;
+	}
 
 	for (i = 0; i < data->num_zones; i++) {
 		const char *t = data->type[i][0] ? data->type[i] : "zone";

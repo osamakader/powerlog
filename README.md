@@ -51,6 +51,7 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 | `-T, --alert-thermal C` | Alert when any thermal zone reaches C °C |
 | `-B, --alert-battery PCT` | Alert when battery is at or below PCT % while discharging |
 | `-h, --help` | Show help |
+| `-a, --all` | print all |
 
 ## Alerts
 

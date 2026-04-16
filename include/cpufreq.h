@@ -15,7 +15,7 @@ typedef struct {
 } cpufreq_data_t;
 
 void cpufreq_collect(cpufreq_data_t *data);
-void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev);
+void cpufreq_log(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev, bool full);
 void cpufreq_json(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *prev);
 
 #endif /* CPUFREQ_H */

@@ -1,35 +1,33 @@
-# Power Consumption Logger
-# Requires: Linux with sysfs
+CC       ?= gcc
+CPPFLAGS += -Iinclude
+CFLAGS   ?= -Wall -Wextra -O2
+LDFLAGS  ?=
+LDLIBS   ?=
 
-CC     ?= gcc
-# -MMD/-MP: emit .d files so rebuilds run when headers change, not only .c files
-CFLAGS ?= -Wall -Wextra -O2 -I include -MMD -MP
-LDFLAGS =
+PREFIX   ?= /usr/local
+BINDIR   ?= $(PREFIX)/bin
+TARGET   ?= powerlog
 
-SRCDIR = src
-SRCS   = $(SRCDIR)/main.c $(SRCDIR)/common.c $(SRCDIR)/cpufreq.c \
-         $(SRCDIR)/cpuidle.c $(SRCDIR)/thermal.c $(SRCDIR)/battery.c \
-         $(SRCDIR)/regulator.c $(SRCDIR)/alerts.c
-OBJS   = $(SRCS:.c=.o)
-DEPS   = $(OBJS:.o=.d)
-TARGET = powerlog
+SRCDIR := src
+SRCS   := $(sort $(wildcard $(SRCDIR)/*.c))
+OBJS   := $(SRCS:.c=.o)
+DEPS   := $(OBJS:.o=.d)
 
 .PHONY: all clean install
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) -o $@ $^
+	$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 $(SRCDIR)/%.o: $(SRCDIR)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	rm -f $(OBJS) $(DEPS) $(TARGET)
+	$(RM) $(OBJS) $(DEPS) $(TARGET)
 
 install: $(TARGET)
-	install -d $(DESTDIR)/usr/local/bin
-	install -m 755 $(TARGET) $(DESTDIR)/usr/local/bin/
+	install -d "$(DESTDIR)$(BINDIR)"
+	install -m 755 $(TARGET) "$(DESTDIR)$(BINDIR)/$(TARGET)"
 
-# After `all` so the default goal stays `all`, not a rule from a .d file
 -include $(DEPS)

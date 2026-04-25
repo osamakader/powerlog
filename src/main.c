@@ -8,6 +8,7 @@
 #endif
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -37,29 +38,31 @@ static volatile sig_atomic_t running = 1;
 static int parse_time_ms(const char *arg, unsigned *out_ms)
 {
 	char *end;
-	double v = strtod(arg, &end);
+	double v;
+	double scale = 0.0;
+	double ms;
 
-	if (end == arg)
+	errno = 0;
+	v = strtod(arg, &end);
+
+	if (end == arg || errno == ERANGE || !isfinite(v) || v < 0.0)
 		return -1;
 	if (*end == '\0') {
-		if (v < 0)
-			return -1;
-		*out_ms = (unsigned)(v * 1000.0 + 0.5);
-		return 0;
+		scale = 1000.0;
+	} else if (strcasecmp(end, "ms") == 0) {
+		scale = 1.0;
+	} else if (strcasecmp(end, "s") == 0) {
+		scale = 1000.0;
+	} else {
+		return -1;
 	}
-	if (strcasecmp(end, "ms") == 0) {
-		if (v < 0)
-			return -1;
-		*out_ms = (unsigned)(v + 0.5);
-		return 0;
-	}
-	if (strcasecmp(end, "s") == 0) {
-		if (v < 0)
-			return -1;
-		*out_ms = (unsigned)(v * 1000.0 + 0.5);
-		return 0;
-	}
-	return -1;
+
+	ms = v * scale;
+	if (!isfinite(ms) || ms > (double)UINT_MAX)
+		return -1;
+
+	*out_ms = (unsigned)(ms + 0.5);
+	return 0;
 }
 
 static void sleep_ms(unsigned ms)

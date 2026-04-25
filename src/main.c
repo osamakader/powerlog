@@ -261,13 +261,125 @@ static void log_text_brief(FILE *out, unsigned sample_no, const char *ts_human,
 	prev_ok = true;
 }
 
+static void log_csv_brief(FILE *out, unsigned sample_no, uint64_t elapsed_ms, const char *ts_iso,
+			  const cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
+			  const thermal_data_t *th, const thermal_data_t *th_prev,
+			  const battery_data_t *bat)
+{
+	static double prev_drain;
+	static int prev_bat_pct;
+	static bool prev_ok;
+	double avg, var;
+	int min_mhz, max_mhz;
+	char hot_lbl[64];
+	float hot_c = -1000.0f;
+	int zhot;
+	int i;
+	int bat_pct = -1;
+	double drain_w = -1.0;
+	bool has_hot;
+	bool have_drain = false;
+
+	if (sample_no == 1u) {
+		prev_ok = false;
+		fprintf(out, "start_timestamp,%s\n", ts_iso);
+		fprintf(out,
+			"sample,t_sec,cpu_avg_mhz,cpu_max_mhz,cpu_delta_pct,hot_c,hot_delta_c,bat_pct,bat_delta,drain_w,drain_delta_w\n");
+	}
+
+	if (cf->available)
+		cpufreq_summary(cf, &avg, &min_mhz, &max_mhz, &var);
+	else {
+		avg = 0.0;
+		min_mhz = -1;
+		max_mhz = -1;
+	}
+
+	has_hot = thermal_hottest_zone(th, hot_lbl, sizeof(hot_lbl), &hot_c, &zhot);
+
+	for (i = 0; i < bat->num_batteries; i++) {
+		if (bat->capacity[i] >= 0) {
+			bat_pct = bat->capacity[i];
+			break;
+		}
+	}
+	for (i = 0; i < bat->num_batteries; i++) {
+		if (bat->power_uw[i] != -1 && brief_bat_discharging(bat->status[i])) {
+			drain_w = fabs((double)bat->power_uw[i]) / 1e6;
+			have_drain = true;
+			break;
+		}
+	}
+
+	fprintf(out, "%u,%.3f,", sample_no, (double)elapsed_ms / 1000.0);
+	if (cf->available && min_mhz >= 0)
+		fprintf(out, "%.2f,%d,", avg, max_mhz);
+	else
+		fprintf(out, "NA,NA,");
+
+	if (prev_ok && cf_prev && cf_prev->available) {
+		double pavg, pvar;
+		int pmin, pmax;
+
+		cpufreq_summary(cf_prev, &pavg, &pmin, &pmax, &pvar);
+		if (pavg > 1e-6)
+			fprintf(out, "%.4f,", (avg - pavg) / pavg * 100.0);
+		else
+			fprintf(out, "NA,");
+	} else {
+		fprintf(out, "NA,");
+	}
+
+	if (has_hot)
+		fprintf(out, "%.2f,", (double)hot_c);
+	else
+		fprintf(out, "NA,");
+
+	if (prev_ok && has_hot && th_prev && th_prev->available) {
+		float ph;
+		int pz;
+
+		if (thermal_hottest_zone(th_prev, hot_lbl, sizeof(hot_lbl), &ph, &pz))
+			fprintf(out, "%.2f,", (double)hot_c - (double)ph);
+		else
+			fprintf(out, "NA,");
+	} else {
+		fprintf(out, "NA,");
+	}
+
+	if (bat_pct >= 0)
+		fprintf(out, "%d,", bat_pct);
+	else
+		fprintf(out, "NA,");
+
+	if (prev_ok && prev_bat_pct >= 0 && bat_pct >= 0)
+		fprintf(out, "%d,", bat_pct - prev_bat_pct);
+	else
+		fprintf(out, "NA,");
+
+	if (have_drain)
+		fprintf(out, "%.4f,", drain_w);
+	else
+		fprintf(out, "NA,");
+
+	if (prev_ok && have_drain && prev_drain >= 0.0)
+		fprintf(out, "%.4f\n", drain_w - prev_drain);
+	else
+		fprintf(out, "NA\n");
+
+	prev_bat_pct = bat_pct;
+	prev_drain = have_drain ? drain_w : -1.0;
+	prev_ok = true;
+}
+
 static void log_all(FILE *out, bool json,
 		    cpufreq_data_t *cf, const cpufreq_data_t *cf_prev,
 		    cpuidle_data_t *ci,
 		    thermal_data_t *th, const thermal_data_t *th_prev,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
-		    unsigned interval_ms, bool print_all, bool brief_mode, unsigned sample_no)
+		    unsigned interval_ms, bool print_all, bool brief_mode, bool csv_mode,
+		    unsigned sample_no, uint64_t elapsed_ms)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
@@ -302,6 +414,8 @@ static void log_all(FILE *out, bool json,
 		fprintf(out, ",\n  ");
 		alerts_json(out, alerts, th, bat);
 		fprintf(out, "\n}\n");
+	} else if (csv_mode) {
+		log_csv_brief(out, sample_no, elapsed_ms, ts, cf, cf_prev, th, th_prev, bat);
 	} else if (brief_mode) {
 		log_text_brief(out, sample_no, ts_human, cf, cf_prev, th, th_prev, bat);
 	} else {
@@ -337,6 +451,8 @@ static void usage(const char *prog)
 	printf("                       (default: summary + hottest thermal + battery only)\n");
 	printf("  -b, --brief          Text: one table row per sample (timestamp + metrics + Δ vs prev)\n");
 	printf("                       (ignored with -j; overrides default / -a layout)\n");
+	printf("  -c, --csv            CSV rows: sample,timestamp,cpu/thermal/battery metrics + deltas\n");
+	printf("                       (ignored with -j; overrides default / -a / -b layouts)\n");
 	printf("  -T, --alert-thermal C  Alert when any zone reaches C °C (stderr + JSON alerts)\n");
 	printf("  -B, --alert-battery PCT Alert when battery ≤ PCT%% while discharging\n");
 	printf("  -h, --help           Show this help\n");
@@ -351,6 +467,7 @@ int main(int argc, char *argv[])
 	bool json_mode = false;
 	bool print_all = false;
 	bool brief_mode = false;
+	bool csv_mode = false;
 	bool with_cpuidle = false;
 	alert_config_t alert_cfg;
 	alert_edge_state_t alert_edge;
@@ -366,13 +483,14 @@ int main(int argc, char *argv[])
 		{ "alert-battery", required_argument, 0, 'B' },
 		{ "all", no_argument, 0, 'a' },
 		{ "brief", no_argument, 0, 'b' },
+		{ "csv", no_argument, 0, 'c' },
 		{ 0, 0, 0, 0 }
 	};
 
 	alert_config_init(&alert_cfg);
 	alert_edge_init(&alert_edge);
 
-	while ((opt = getopt_long(argc, argv, "i:d:o:jhwabT:B:", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:d:o:jhwabcT:B:", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			if (parse_time_ms(optarg, &interval_ms) != 0 || interval_ms < 1u) {
@@ -406,6 +524,9 @@ int main(int argc, char *argv[])
 		case 'b':
 			brief_mode = true;
 			break;
+		case 'c':
+			csv_mode = true;
+			break;
 		case 'T':
 			alert_cfg.thermal_max_c = atoi(optarg);
 			break;
@@ -420,6 +541,8 @@ int main(int argc, char *argv[])
 
 	if (json_mode)
 		brief_mode = false;
+	if (json_mode)
+		csv_mode = false;
 
 	if (out_path) {
 		out = fopen(out_path, "a");
@@ -445,10 +568,12 @@ int main(int argc, char *argv[])
 	clock_gettime(CLOCK_MONOTONIC, &t0);
 
 	while (running) {
+		uint64_t elapsed_ms = monotonic_ms_since(&t0);
+
 		sample_no++;
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
 			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all,
-			brief_mode, sample_no);
+			brief_mode, csv_mode, sample_no, elapsed_ms);
 		cf_prev = cf;
 		th_prev = th;
 

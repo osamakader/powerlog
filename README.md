@@ -36,6 +36,14 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 
 # Brief aligned table for quick trends
 ./powerlog -b -i 1s
+./powerlog --profile brief -i 1s
+
+# Domain-only text (minimal within that domain)
+./powerlog --profile thermal -i 2s
+./powerlog --profile battery -i 2s
+
+# Full text (same as -a)
+./powerlog --profile full -i 2s
 
 # CSV output for spreadsheets/plotting
 ./powerlog -c -i 1s -o powerlog.csv
@@ -59,6 +67,7 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 | `-h, --help` | Show help |
 | `-a, --all` | Text mode: print full details (all CPUs/thermal zones/regulators) |
 | `-b, --brief` | Text mode: compact aligned table with one row per sample |
+| `-P, --profile NAME` | Text layout preset: `brief`, `thermal` (thermal only, hottest line), `battery` (battery only), `full` (same as `-a`). Ignored with `-j`. If set, overrides `-a`/`-b` for layout; `-c` still selects CSV when present |
 | `-c, --csv` | CSV mode: one row per sample with elapsed seconds (`t_sec`) + CPU/thermal/battery metrics and deltas; `start_timestamp` is printed once at top |
 
 ## Alerts

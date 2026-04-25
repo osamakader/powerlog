@@ -1,5 +1,6 @@
 #include "common.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 int read_sysfs(const char *path, char *buf, size_t buf_size)
@@ -37,46 +38,44 @@ bool path_exists(const char *path)
 	return access(path, F_OK) == 0;
 }
 
-void log_text_timestamp(FILE *out, const char *timestamp)
+static void log_text_rule(FILE *out, char c)
 {
 	int i;
 
-	fputc('\n', out);
 	for (i = 0; i < LOG_TEXT_WIDTH; i++)
-		fputc('=', out);
+		fputc((int)c, out);
 	fputc('\n', out);
-	fprintf(out, "  %s\n", timestamp);
-	for (i = 0; i < LOG_TEXT_WIDTH; i++)
-		fputc('=', out);
+}
+
+void log_text_heading(FILE *out, char rule, const char *fmt, ...)
+{
+	va_list ap;
+
 	fputc('\n', out);
+	log_text_rule(out, rule);
+	va_start(ap, fmt);
+	vfprintf(out, fmt, ap);
+	va_end(ap);
+	fputc('\n', out);
+	log_text_rule(out, rule);
+}
+
+void log_text_timestamp(FILE *out, const char *timestamp)
+{
+	log_text_heading(out, '=', "  %s", timestamp);
 }
 
 void log_text_sample_index(FILE *out, unsigned sample_no)
 {
-	int i;
-
-	fputc('\n', out);
-	for (i = 0; i < LOG_TEXT_WIDTH; i++)
-		fputc('=', out);
-	fputc('\n', out);
-	fprintf(out, "  Sample %u\n", sample_no);
-	for (i = 0; i < LOG_TEXT_WIDTH; i++)
-		fputc('=', out);
-	fputc('\n', out);
+	log_text_heading(out, '=', "  Sample %u", sample_no);
 }
 
 void log_text_section(FILE *out, const char *title)
 {
-	int i;
-
-	fputc('\n', out);
-	fprintf(out, "%s\n", title);
-	for (i = 0; i < LOG_TEXT_WIDTH; i++)
-		fputc('-', out);
-	fputc('\n', out);
+	log_text_heading(out, '-', "%s", title);
 }
 
-void json_escape_fprintf(FILE *out, const char *s)
+static void json_fprintf_escaped(FILE *out, const char *s)
 {
 	unsigned char c;
 
@@ -117,4 +116,11 @@ void json_escape_fprintf(FILE *out, const char *s)
 			break;
 		}
 	}
+}
+
+void json_fprintf_string(FILE *out, const char *s)
+{
+	fputc('"', out);
+	json_fprintf_escaped(out, s ? s : "");
+	fputc('"', out);
 }

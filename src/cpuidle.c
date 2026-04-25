@@ -78,10 +78,10 @@ void cpuidle_json(FILE *out, const cpuidle_data_t *data)
 		for (state = 0; state < data->num_states[cpu]; state++) {
 			if (state > 0)
 				fprintf(out, ",\n      ");
-			fprintf(out, "{\"name\": \"");
-			json_escape_fprintf(out, data->name[cpu][state][0] ?
-					   data->name[cpu][state] : "?");
-			fprintf(out, "\", \"time_us\": %lu, \"usage\": %lu}",
+			fprintf(out, "{\"name\": ");
+			json_fprintf_string(out, data->name[cpu][state][0] ?
+					    data->name[cpu][state] : "?");
+			fprintf(out, ", \"time_us\": %lu, \"usage\": %lu}",
 				data->time[cpu][state], data->usage[cpu][state]);
 		}
 		fprintf(out, "\n    ]}");

@@ -143,9 +143,9 @@ void alerts_json(FILE *out, const alert_config_t *cfg, const thermal_data_t *th,
 
 	if (cfg->thermal_max_c >= 0 && th->available && thermal_over(cfg, th)) {
 		thermal_worst(th, &max_mc, zone, sizeof(zone));
-		fprintf(out, "    {\"type\": \"thermal\", \"zone\": \"");
-		json_escape_fprintf(out, zone);
-		fprintf(out, "\", \"temp_c\": %.2f, \"threshold_c\": %d}",
+		fprintf(out, "    {\"type\": \"thermal\", \"zone\": ");
+		json_fprintf_string(out, zone);
+		fprintf(out, ", \"temp_c\": %.2f, \"threshold_c\": %d}",
 			max_mc / 1000.0, cfg->thermal_max_c);
 		n++;
 	}
@@ -168,12 +168,12 @@ void alerts_json(FILE *out, const alert_config_t *cfg, const thermal_data_t *th,
 				if (!first)
 					fprintf(out, ",\n");
 				first = 0;
-				fprintf(out, "      {\"name\": \"");
-				json_escape_fprintf(out, bat->name[i]);
-				fprintf(out, "\", \"capacity\": %d, \"status\": \"",
+				fprintf(out, "      {\"name\": ");
+				json_fprintf_string(out, bat->name[i]);
+				fprintf(out, ", \"capacity\": %d, \"status\": ",
 					bat->capacity[i]);
-				json_escape_fprintf(out, bat->status[i][0] ? bat->status[i] : "?");
-				fprintf(out, "\"}");
+				json_fprintf_string(out, bat->status[i][0] ? bat->status[i] : "?");
+				fprintf(out, "}");
 			}
 		}
 		fprintf(out, "\n    ]}");

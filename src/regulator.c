@@ -102,11 +102,10 @@ void regulator_json(FILE *out, const regulator_data_t *data)
 			continue;
 		if (n > 0)
 			fprintf(out, ",\n    ");
-		fprintf(out, "{\"name\": \"");
-		json_escape_fprintf(out, data->name[i]);
-		fprintf(out, "\", \"state\": \"");
-		json_escape_fprintf(out, data->state[i][0] ? data->state[i] : "?");
-		fprintf(out, "\"");
+		fprintf(out, "{\"name\": ");
+		json_fprintf_string(out, data->name[i]);
+		fprintf(out, ", \"state\": ");
+		json_fprintf_string(out, data->state[i][0] ? data->state[i] : "?");
 		if (data->microvolts[i] >= 0)
 			fprintf(out, ", \"microvolts\": %d", data->microvolts[i]);
 		fprintf(out, "}");

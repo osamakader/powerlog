@@ -317,9 +317,9 @@ void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *p
 
 	fprintf(out, "\"thermal\": {\n    \"summary\": ");
 	if (have_hot) {
-		fprintf(out, "{\"hottest_label\": \"");
-		json_escape_fprintf(out, hot_label);
-		fprintf(out, "\", \"hottest_c\": %.2f", tc);
+		fprintf(out, "{\"hottest_label\": ");
+		json_fprintf_string(out, hot_label);
+		fprintf(out, ", \"hottest_c\": %.2f", tc);
 		if (prev && prev->num_zones > zhot && interval_ms > 0 &&
 		    data->temp_mc[zhot] >= 0 && prev->temp_mc[zhot] >= 0) {
 			double dcdt = (double)(data->temp_mc[zhot] - prev->temp_mc[zhot]) /
@@ -360,9 +360,8 @@ void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *p
 				if (!subfirst)
 					fprintf(out, ", ");
 				subfirst = 0;
-				fprintf(out, "\"");
-				json_escape_fprintf(out, mapped[i].sysfs);
-				fprintf(out, "\": %.2f", mapped[i].temp_mc >= 0 ?
+				json_fprintf_string(out, mapped[i].sysfs);
+				fprintf(out, ": %.2f", mapped[i].temp_mc >= 0 ?
 					mapped[i].temp_mc / 1000.0 : -1.0);
 			}
 			fprintf(out, "}");
@@ -372,9 +371,9 @@ void thermal_json(FILE *out, const thermal_data_t *data, const thermal_data_t *p
 	for (i = 0; i < no; i++) {
 		if (i > 0)
 			fprintf(out, ",\n");
-		fprintf(out, "      {\"id\": \"");
-		json_escape_fprintf(out, other[i].id);
-		fprintf(out, "\", \"temp_c\": %.2f", other[i].temp_mc >= 0 ?
+		fprintf(out, "      {\"id\": ");
+		json_fprintf_string(out, other[i].id);
+		fprintf(out, ", \"temp_c\": %.2f", other[i].temp_mc >= 0 ?
 			other[i].temp_mc / 1000.0 : -1.0);
 		if (prev && prev->num_zones > other[i].zone_idx &&
 		    other[i].temp_mc >= 0 && prev->temp_mc[other[i].zone_idx] >= 0) {

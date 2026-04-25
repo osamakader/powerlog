@@ -158,9 +158,8 @@ void cpufreq_json(FILE *out, const cpufreq_data_t *data, const cpufreq_data_t *p
 		fprintf(out, "{\"cpu\": %d, \"freq_mhz\": %d", i,
 			data->freq_khz[i] >= 0 ? data->freq_khz[i] / 1000 : -1);
 		if (data->energy_pref[i][0]) {
-			fprintf(out, ", \"energy_pref\": \"");
-			json_escape_fprintf(out, data->energy_pref[i]);
-			fprintf(out, "\"");
+			fprintf(out, ", \"energy_pref\": ");
+			json_fprintf_string(out, data->energy_pref[i]);
 		}
 		if (prev && prev->num_cpus > i && data->freq_khz[i] >= 0 && prev->freq_khz[i] >= 0) {
 			fprintf(out, ", \"delta_mhz\": %d",

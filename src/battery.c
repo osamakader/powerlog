@@ -131,12 +131,10 @@ void battery_json(FILE *out, const battery_data_t *data)
 			continue;
 		if (n > 0)
 			fprintf(out, ",\n    ");
-		fprintf(out, "{\"name\": \"");
-		json_escape_fprintf(out, data->name[i]);
-		fprintf(out, "\", \"capacity\": %d, \"status\": \"",
-			data->capacity[i]);
-		json_escape_fprintf(out, data->status[i][0] ? data->status[i] : "?");
-		fprintf(out, "\"");
+		fprintf(out, "{\"name\": ");
+		json_fprintf_string(out, data->name[i]);
+		fprintf(out, ", \"capacity\": %d, \"status\": ", data->capacity[i]);
+		json_fprintf_string(out, data->status[i][0] ? data->status[i] : "?");
 		if (data->power_uw[i] != -1 && status_discharging(data->status[i]))
 			fprintf(out, ", \"discharge_w\": %.4f",
 				fabs((double)data->power_uw[i]) / 1e6);

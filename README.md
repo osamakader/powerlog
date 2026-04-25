@@ -34,6 +34,12 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 # Combined
 ./powerlog -i 10 -o /var/log/powerlog.txt
 
+# Brief aligned table for quick trends
+./powerlog -b -i 1s
+
+# CSV output for spreadsheets/plotting
+./powerlog -c -i 1s -o powerlog.csv
+
 # Alerts (stderr on threshold crossing; JSON includes an `alerts` array when active)
 ./powerlog -T 80 -B 15
 ./powerlog -j -o log.json -T 85
@@ -51,8 +57,9 @@ Timestamps include milliseconds so fast intervals stay ordered in logs and JSON.
 | `-T, --alert-thermal C` | Alert when any thermal zone reaches C °C |
 | `-B, --alert-battery PCT` | Alert when battery is at or below PCT % while discharging |
 | `-h, --help` | Show help |
-| `-a, --all` | print all |
-| `-b, --brief` | print brief table |
+| `-a, --all` | Text mode: print full details (all CPUs/thermal zones/regulators) |
+| `-b, --brief` | Text mode: compact aligned table with one row per sample |
+| `-c, --csv` | CSV mode: one row per sample with elapsed seconds (`t_sec`) + CPU/thermal/battery metrics and deltas; `start_timestamp` is printed once at top |
 
 ## Alerts
 

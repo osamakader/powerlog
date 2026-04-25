@@ -32,6 +32,14 @@
 #define DEFAULT_INTERVAL_MS 5000u
 #define TIMESTAMP_BUF_SIZE 48 /* YYYY-mm-dd HH:MM:SS.mmm + NUL */
 
+typedef enum {
+	PROFILE_NONE = 0,
+	PROFILE_BRIEF,
+	PROFILE_THERMAL,
+	PROFILE_BATTERY,
+	PROFILE_FULL
+} profile_t;
+
 static volatile sig_atomic_t running = 1;
 
 /* Bare number = seconds; suffix `s` = seconds, `ms` = milliseconds */
@@ -379,7 +387,7 @@ static void log_all(FILE *out, bool json,
 		    battery_data_t *bat, regulator_data_t *reg,
 		    bool with_cpuidle, const alert_config_t *alerts, alert_edge_state_t *edge,
 		    unsigned interval_ms, bool print_all, bool brief_mode, bool csv_mode,
-		    unsigned sample_no, uint64_t elapsed_ms)
+		    bool thermal_only, bool battery_only, unsigned sample_no, uint64_t elapsed_ms)
 {
 	char ts[TIMESTAMP_BUF_SIZE];
 	char ts_human[TIMESTAMP_BUF_SIZE];
@@ -427,13 +435,19 @@ static void log_all(FILE *out, bool json,
 		} else {
 			log_text_sample_index(out, sample_no);
 		}
-		cpufreq_log(out, cf, cf_prev, print_all);
-		if (print_all && with_cpuidle)
-			cpuidle_log(out, ci);
-		thermal_log(out, th, th_prev, interval_ms, print_all);
-		battery_log(out, bat);
-		if (print_all)
-			regulator_log(out, reg);
+		if (thermal_only) {
+			thermal_log(out, th, th_prev, interval_ms, false);
+		} else if (battery_only) {
+			battery_log(out, bat);
+		} else {
+			cpufreq_log(out, cf, cf_prev, print_all);
+			if (print_all && with_cpuidle)
+				cpuidle_log(out, ci);
+			thermal_log(out, th, th_prev, interval_ms, print_all);
+			battery_log(out, bat);
+			if (print_all)
+				regulator_log(out, reg);
+		}
 	}
 	fflush(out);
 }
@@ -451,8 +465,10 @@ static void usage(const char *prog)
 	printf("                       (default: summary + hottest thermal + battery only)\n");
 	printf("  -b, --brief          Text: one table row per sample (timestamp + metrics + Δ vs prev)\n");
 	printf("                       (ignored with -j; overrides default / -a layout)\n");
-	printf("  -c, --csv            CSV rows: sample,timestamp,cpu/thermal/battery metrics + deltas\n");
+	printf("  -c, --csv            CSV: start_timestamp + rows with t_sec and metrics/deltas\n");
 	printf("                       (ignored with -j; overrides default / -a / -b layouts)\n");
+	printf("  -P, --profile NAME   Text layout: brief | thermal | battery | full\n");
+	printf("                       (ignored with -j; sets layout instead of -a/-b; -c still wins)\n");
 	printf("  -T, --alert-thermal C  Alert when any zone reaches C °C (stderr + JSON alerts)\n");
 	printf("  -B, --alert-battery PCT Alert when battery ≤ PCT%% while discharging\n");
 	printf("  -h, --help           Show this help\n");
@@ -468,7 +484,10 @@ int main(int argc, char *argv[])
 	bool print_all = false;
 	bool brief_mode = false;
 	bool csv_mode = false;
+	bool thermal_only = false;
+	bool battery_only = false;
 	bool with_cpuidle = false;
+	profile_t profile = PROFILE_NONE;
 	alert_config_t alert_cfg;
 	alert_edge_state_t alert_edge;
 	int opt;
@@ -484,13 +503,14 @@ int main(int argc, char *argv[])
 		{ "all", no_argument, 0, 'a' },
 		{ "brief", no_argument, 0, 'b' },
 		{ "csv", no_argument, 0, 'c' },
+		{ "profile", required_argument, 0, 'P' },
 		{ 0, 0, 0, 0 }
 	};
 
 	alert_config_init(&alert_cfg);
 	alert_edge_init(&alert_edge);
 
-	while ((opt = getopt_long(argc, argv, "i:d:o:jhwabcT:B:", long_opts, NULL)) != -1) {
+	while ((opt = getopt_long(argc, argv, "i:d:o:jhwabcT:B:P:", long_opts, NULL)) != -1) {
 		switch (opt) {
 		case 'i':
 			if (parse_time_ms(optarg, &interval_ms) != 0 || interval_ms < 1u) {
@@ -527,6 +547,22 @@ int main(int argc, char *argv[])
 		case 'c':
 			csv_mode = true;
 			break;
+		case 'P':
+			if (strcasecmp(optarg, "brief") == 0)
+				profile = PROFILE_BRIEF;
+			else if (strcasecmp(optarg, "thermal") == 0)
+				profile = PROFILE_THERMAL;
+			else if (strcasecmp(optarg, "battery") == 0)
+				profile = PROFILE_BATTERY;
+			else if (strcasecmp(optarg, "full") == 0)
+				profile = PROFILE_FULL;
+			else {
+				fprintf(stderr,
+					"%s: invalid --profile %s (use brief, thermal, battery, or full)\n",
+					argv[0], optarg);
+				return 1;
+			}
+			break;
 		case 'T':
 			alert_cfg.thermal_max_c = atoi(optarg);
 			break;
@@ -543,6 +579,29 @@ int main(int argc, char *argv[])
 		brief_mode = false;
 	if (json_mode)
 		csv_mode = false;
+
+	if (profile != PROFILE_NONE && !json_mode) {
+		print_all = false;
+		brief_mode = false;
+		thermal_only = false;
+		battery_only = false;
+		switch (profile) {
+		case PROFILE_BRIEF:
+			brief_mode = true;
+			break;
+		case PROFILE_THERMAL:
+			thermal_only = true;
+			break;
+		case PROFILE_BATTERY:
+			battery_only = true;
+			break;
+		case PROFILE_FULL:
+			print_all = true;
+			break;
+		default:
+			break;
+		}
+	}
 
 	if (out_path) {
 		out = fopen(out_path, "a");
@@ -573,7 +632,7 @@ int main(int argc, char *argv[])
 		sample_no++;
 		log_all(out, json_mode, &cf, &cf_prev, &ci, &th, &th_prev, &bat, &reg,
 			with_cpuidle, &alert_cfg, &alert_edge, interval_ms, print_all,
-			brief_mode, csv_mode, sample_no, elapsed_ms);
+			brief_mode, csv_mode, thermal_only, battery_only, sample_no, elapsed_ms);
 		cf_prev = cf;
 		th_prev = th;
 
